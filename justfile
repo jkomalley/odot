@@ -1,36 +1,49 @@
 # Justfile for odot project
-default: sync lint format ty test
 
-# Sync local dependencies with pyproject.toml
-sync:
+set shell := ["bash", "-c"]
+
+# Show available recipes
+default:
+    @just --list
+
+# Initialize the development environment
+install:
     uv sync
+    pre-commit install
 
-# Run the app locally
+# Run the CLI app locally. Usage: just run --help
 run *args:
     uv run odot {{args}}
 
-# Run linter and auto-fix issues
-lint:
-    uv run ruff check . --fix
-
-# Run linter without auto-fixing (for CI)
-lint-ci:
-    uv run ruff check .
-
-# Format code
-format:
-    uv run ruff format
-
-# Check code formatting (for CI)
-format-ci:
-    uv run ruff format --check
-
-# Run type checks
-ty:
-    uv run ty check
-
+# Run tests with coverage
 test:
     uv run pytest
 
-# Run all checks before committing
-check: lint ty test
+# Check code formatting (for CI)
+format-check:
+    uv run ruff format --check .
+
+# Format code
+format:
+    uv run ruff format .
+
+# Run linter without auto-fixing (for CI)
+lint-check:
+    uv run ruff check .
+
+# Run linter and auto-fix issues
+lint:
+    uv run ruff check --fix .
+
+# Run type checks
+typecheck:
+    uv run ty check
+
+# Run all checks (format, lint, typecheck, tests)
+check: format-check lint-check typecheck test
+
+# Clean up cache directories
+clean:
+    rm -rf .pytest_cache .ruff_cache
+    find . -type d -name "__pycache__" -exec rm -rf {} +
+    find . -type f -name "*.pyc" -delete
