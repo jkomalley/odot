@@ -5,27 +5,39 @@ from datetime import datetime, timezone
 from sqlmodel import Field, SQLModel
 
 
-class Task(SQLModel, table=True):
+class TaskBase(SQLModel):
+    """Base fields for a task."""
+
+    content: str = Field(index=True, min_length=1, max_length=255)
+    priority: int = Field(default=1, ge=1, le=3, description="Priority from 1 to 3")
+    category: str = Field(default="general", index=True)
+
+
+class TaskCreate(TaskBase):
+    """Model used when creating a task. Inherits all fields from TaskBase."""
+
+    pass
+
+
+class TaskUpdate(SQLModel):
+    """Model for updating a task. All fields are optional."""
+
+    content: str | None = Field(default=None, min_length=1, max_length=255)
+    priority: int | None = Field(
+        default=None, ge=1, le=3, description="Priority from 1 to 3"
+    )
+    category: str | None = Field(default=None)
+    is_done: bool | None = Field(default=None)
+
+
+class Task(TaskBase, table=True):
     """The core Task model.
 
-    This defines the 'tasks' table in SQLite and validates CLI input.
+    This defines the 'tasks' table in SQLite.
     """
 
     id: int | None = Field(default=None, primary_key=True)
-
-    # The actual task text
-    content: str = Field(index=True, min_length=1, max_length=255)
-
-    # Priority: 1 (Low), 2 (Medium), 3 (High)
-    priority: int = Field(default=1, ge=1, le=3, description="Priority from 1 to 3")
-
-    # Status
     is_done: bool = Field(default=False)
-
-    # Metadata
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), nullable=False
     )
-
-    # Optional category/tag (e.g., 'work', 'gym')
-    category: str | None = Field(default="general", index=True)

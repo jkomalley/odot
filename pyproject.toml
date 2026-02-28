@@ -24,7 +24,7 @@ convention = "google"
 
 [tool.pytest.ini_options]
 pythonpath = "src"
-addopts = "--cov=src/odot --cov-report=term-missing --cov-fail-under=80"
+addopts = "--cov=src/odot --cov-report=term-missing --cov-fail-under=100"
 
 [build-system]
 requires = ["uv_build>=0.10.2,<0.11.0"]
