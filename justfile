@@ -54,10 +54,26 @@ clean:
 
 # Upgrade uv.lock and sync
 lock-upgrade:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$BRANCH" = "main" ]; then
+        TIMESTAMP=$(date +%s)
+        NEW_BRANCH="chore/update-deps-$TIMESTAMP"
+        echo "Creating new branch $NEW_BRANCH to protect main..."
+        git checkout -b "$NEW_BRANCH"
+    fi
+
     uv lock --upgrade
     uv sync
     git add pyproject.toml uv.lock
     git commit -m "chore: update dependencies" || true
+
+    if [ "$BRANCH" = "main" ]; then
+        echo "Pushing new dependency branch upstream..."
+        git push -u origin "$NEW_BRANCH"
+    fi
 
 # Bump project version (usage: just bump-version <major|minor|patch|dev|beta|alpha|rc>)
 bump-version part:
