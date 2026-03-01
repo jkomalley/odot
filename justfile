@@ -67,8 +67,18 @@ lock-upgrade:
 
     uv lock --upgrade
     uv sync
+
+    if git diff --quiet pyproject.toml uv.lock; then
+        echo "No dependencies to update."
+        if [ "$BRANCH" = "main" ]; then
+            git checkout main
+            git branch -D "$NEW_BRANCH"
+        fi
+        exit 0
+    fi
+
     git add pyproject.toml uv.lock
-    git commit -m "chore: update dependencies" || true
+    git commit -m "chore: update dependencies"
 
     if [ "$BRANCH" = "main" ]; then
         echo "Pushing new dependency branch upstream..."
