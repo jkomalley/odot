@@ -76,10 +76,6 @@ def test_list_command():
     assert "Task A" in result.stdout
     assert "Task B" in result.stdout
 
-    # Test empty list (need a fresh db or just clear it for isolation, but conftest handles session isolation per test!)
-    # Actually wait, the session fixture spans the test, not the transaction.
-    pass
-
 
 def test_list_command_empty(session):
     """Test list command when no tasks exist."""

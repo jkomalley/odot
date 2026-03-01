@@ -15,9 +15,13 @@ install:
 run *args:
     uv run odot {{args}}
 
-# Run tests with coverage
+# Run tests
 test:
     uv run pytest
+
+# Run tests with coverage and enforce 100% execution
+test-cov:
+    uv run pytest --cov=src/odot --cov-report=term-missing --cov-fail-under=100
 
 # Check code formatting (for CI)
 format-check:
@@ -39,8 +43,8 @@ lint:
 typecheck:
     uv run ty check
 
-# Run all checks (format, lint, typecheck, tests)
-check: format-check lint-check typecheck test
+# Run all checks (format, lint, typecheck, tests with coverage)
+check: format-check lint-check typecheck test-cov
 
 # Clean up cache directories
 clean:
