@@ -81,6 +81,11 @@ def test_update_task(session):
     )
     assert missing is None
 
+    # Test no-op updates tracking safely
+    updated_noop = core.update_task(db=session, task_id=task.id, data=TaskUpdate())
+    assert updated_noop is not None
+    assert updated_noop.content == "Old Task"
+
 
 def test_delete_task(session):
     """Test dropping records strictly and preventing duplicated exception checks."""

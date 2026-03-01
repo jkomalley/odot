@@ -21,18 +21,36 @@ def test_create_db_and_tables():
 
 def test_database_directory_creation(tmp_path, monkeypatch):
     """Test that the DB directory is created if it does not exist."""
-    # Mock Path.home() so DB_FILE points to a temporary directory
+    import importlib
+
+    # Mock Path.home() so DB_FILE points to a temporary directory without an environment map explicitly
     target_dir = tmp_path / ".odot"
-    target_file = target_dir / "db.sqlite"
 
-    # Temporarily replace DB_FILE in the module
-    monkeypatch.setattr(database, "DB_FILE", target_file)
+    monkeypatch.delenv("ODOT_DB_PATH", raising=False)
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
-    # The module is already loaded, so we simulate the execution block
-    if not database.DB_FILE.parent.exists():
-        database.DB_FILE.parent.mkdir(parents=True, exist_ok=True)
+    # Force a module reload so it executes the top level conditionals again
+    importlib.reload(database)
 
     assert target_dir.exists()
+    assert database.DB_FILE.parent == target_dir
+
+
+def test_database_directory_env_override(tmp_path, monkeypatch):
+    """Test reading the ODOT_DB_PATH env var successfully parsing."""
+    import importlib
+
+    # Mock ODOT_DB_PATH testing exact injection paths correctly natively over environment flags
+    target_dir = tmp_path / "custom"
+    target_file = target_dir / "mydb.sqlite"
+
+    monkeypatch.setenv("ODOT_DB_PATH", str(target_file))
+
+    # Force a module reload so it executes the top level conditionals again
+    importlib.reload(database)
+
+    assert target_dir.exists()
+    assert database.DB_FILE == target_file
 
 
 def test_get_session():

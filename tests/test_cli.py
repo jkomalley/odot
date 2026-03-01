@@ -32,6 +32,13 @@ def test_help():
     assert "A minimalist CLI task manager." in result.stdout
 
 
+def test_version():
+    """Test the version flag."""
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "odot version:" in result.stdout
+
+
 def test_add_command():
     """Test adding a task via CLI."""
     result = runner.invoke(

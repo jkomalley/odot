@@ -4,6 +4,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from typing_extensions import Annotated
+import importlib.metadata
 
 from odot import core, database
 from odot.models import TaskCreate, TaskUpdate
@@ -14,8 +15,28 @@ app = typer.Typer(
 console = Console()
 
 
+def version_callback(value: bool):
+    """Callback for version printing."""
+    if value:
+        version = importlib.metadata.version("odot")
+        console.print(f"odot version: {version}")
+        raise typer.Exit()
+
+
 @app.callback()
-def main_callback(ctx: typer.Context):
+def main_callback(
+    ctx: typer.Context,
+    version: Annotated[
+        bool | None,
+        typer.Option(
+            "--version",
+            "-v",
+            callback=version_callback,
+            is_eager=True,
+            help="Show the application's version and exit.",
+        ),
+    ] = None,
+):
     """A minimalist CLI task manager."""
     # Ensure ctx.obj is initialized
     if getattr(ctx, "obj", None) is None:
@@ -26,8 +47,12 @@ def main_callback(ctx: typer.Context):
 def add(
     ctx: typer.Context,
     content: str,
-    priority: Annotated[int, typer.Option(help="Priority from 1 to 3")] = 1,
-    category: Annotated[str, typer.Option(help="Category label")] = "general",
+    priority: Annotated[
+        int, typer.Option("-p", "--priority", help="Priority from 1 to 3")
+    ] = 1,
+    category: Annotated[
+        str, typer.Option("-c", "--category", help="Category label")
+    ] = "general",
 ):
     """Add a new task."""
     db = ctx.obj
@@ -53,7 +78,9 @@ def show(ctx: typer.Context, task_id: int):
     table.add_row("Priority", str(task.priority))
     table.add_row("Category", task.category)
     table.add_row("Status", "Done" if task.is_done else "Pending")
-    table.add_row("Created At", task.created_at.strftime("%Y-%m-%d %H:%M:%S"))
+
+    local_time = task.created_at.astimezone()
+    table.add_row("Created At", local_time.strftime("%Y-%m-%d %H:%M:%S"))
 
     console.print(table)
 
@@ -62,7 +89,7 @@ def show(ctx: typer.Context, task_id: int):
 def list_tasks(
     ctx: typer.Context,
     done: Annotated[
-        bool | None, typer.Option("--done/--pending", help="Filter by status")
+        bool | None, typer.Option("-d/-p", "--done/--pending", help="Filter by status")
     ] = None,
 ):
     """List tasks, optionally filtered by status."""
@@ -93,11 +120,18 @@ def list_tasks(
 def update(
     ctx: typer.Context,
     task_id: int,
-    content: Annotated[str | None, typer.Option(help="Update task text")] = None,
-    priority: Annotated[int | None, typer.Option(help="Update priority (1-3)")] = None,
-    category: Annotated[str | None, typer.Option(help="Update category")] = None,
+    content: Annotated[
+        str | None, typer.Option("-m", "--content", help="Update task text")
+    ] = None,
+    priority: Annotated[
+        int | None, typer.Option("-p", "--priority", help="Update priority (1-3)")
+    ] = None,
+    category: Annotated[
+        str | None, typer.Option("-c", "--category", help="Update category")
+    ] = None,
     done: Annotated[
-        bool | None, typer.Option("--done/--pending", help="Update completion status")
+        bool | None,
+        typer.Option("-d/-p", "--done/--pending", help="Update completion status"),
     ] = None,
 ):
     """Update properties of an existing task."""

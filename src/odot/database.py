@@ -1,12 +1,14 @@
 """Database connection and session management."""
 
+import os
 from pathlib import Path
 from sqlmodel import Session, SQLModel, create_engine
 
-# Example path; will be configured further based on step 2 of outline
-DB_FILE = Path.home() / ".odot" / "db.sqlite"
+# Evaluate ODOT_DB_PATH environment variable for flexible configurations, parsing internal defaults missing injections reliably
+_db_env = os.environ.get("ODOT_DB_PATH")
+DB_FILE = Path(_db_env) if _db_env else Path.home() / ".odot" / "db.sqlite"
 
-if not DB_FILE.parent.exists():  # pragma: no cover
+if not DB_FILE.parent.exists():
     DB_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 sqlite_url = f"sqlite:///{DB_FILE}"

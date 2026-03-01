@@ -69,6 +69,9 @@ def update_task(db: Session, task_id: int, data: TaskUpdate) -> Task | None:
 
     # Exclude unset maps strictly updating provided kwargs from partial modification model
     update_data = data.model_dump(exclude_unset=True)
+    if not update_data:
+        return db_task
+
     for key, value in update_data.items():
         setattr(db_task, key, value)
 
