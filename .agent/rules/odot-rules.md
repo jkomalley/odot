@@ -59,3 +59,8 @@ The project employs a clean separation of concerns, divided into four core areas
 - **Version Bumping (`bump-version.yml`)**: A manually dispatched workflow specifying the semver part (major/minor/patch/etc.). It automatically creates a Pull Request (`chore/bump-version`) updating the version.
 - **Releases (`release.yml`)**: Triggered natively upon pushing a `v*` tag. Builds the `uv` package and organically publishes to both GitHub Releases and PyPI.
 - **Dependabot (`dependabot.yml`)**: Runs weekly scanning for updates to GitHub Actions and `uv` dependencies.
+
+## 7. Strict Testing Requirements
+
+- **Local Verification**: Never commit and push newly generated workflows or CI/CD pipelines without natively testing them locally first to verify their success parameters.
+- **Pre-Commit Checks**: Always ensure changes are verified via `just test` or `just check` locally before opening a Pull Request. Agent-driven Pull Requests must not bypass these checks.
