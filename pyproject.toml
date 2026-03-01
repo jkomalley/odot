@@ -1,7 +1,7 @@
 [project]
 name = "odot"
 version = "0.1.0"
-description = "Add your description here"
+description = "A minimalist, interactive command-line task manager built with Python."
 readme = "README.md"
 authors = [{ name = "Kyle O'Malley", email = "j.kyle.omalley@gmail.com" }]
 requires-python = ">=3.10"
