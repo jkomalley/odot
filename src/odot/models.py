@@ -14,7 +14,7 @@ class TaskBase(SQLModel):
 
 
 class TaskCreate(TaskBase):
-    """Model used when creating a task. Inherits all fields from TaskBase."""
+    """Used for type hinting and structural alignment during task creation."""
 
     pass
 

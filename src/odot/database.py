@@ -4,9 +4,12 @@ import os
 from pathlib import Path
 from sqlmodel import Session, SQLModel, create_engine
 
-# Evaluate ODOT_DB_PATH environment variable for flexible configurations, parsing internal defaults missing injections reliably
+# Evaluate ODOT_DB_PATH for configuration overrides, falling back to a local default
 _db_env = os.environ.get("ODOT_DB_PATH")
-DB_FILE = Path(_db_env) if _db_env else Path.home() / ".odot" / "db.sqlite"
+if _db_env:
+    DB_FILE = Path(_db_env)
+else:
+    DB_FILE = Path.home() / ".odot" / "db.sqlite"
 
 if not DB_FILE.parent.exists():
     DB_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -21,6 +24,7 @@ def create_db_and_tables() -> None:
     This function discovers the SQLModel subclasses and emits CREATE TABLE
     queries against the engine.
     """
+    # Import models here to prevent circular imports during module initialization
     from odot.models import Task  # noqa: F401
 
     SQLModel.metadata.create_all(engine)

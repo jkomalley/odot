@@ -27,7 +27,7 @@ def get_task(db: Session, task_id: int) -> Task | None:
 
     Args:
         db: SQLModel Session instance.
-        task_id: The integer ID column value to locate.
+        task_id: ID of the task to locate.
 
     Returns:
         The matched Task, or None if no record matches.
@@ -40,8 +40,7 @@ def list_tasks(db: Session, is_done: bool | None = None) -> list[Task]:
 
     Args:
         db: SQLModel Session instance.
-        is_done: If explicitly True/False, filters results strictly.
-                 If None, retrieves all records entirely.
+        is_done: Filters tasks precisely if set; otherwise returns all tasks.
 
     Returns:
         A list of matching Task schemas.
@@ -57,11 +56,11 @@ def update_task(db: Session, task_id: int, data: TaskUpdate) -> Task | None:
 
     Args:
         db: SQLModel Session instance.
-        task_id: The integer ID column value to locate.
-        data: Validation data model wrapping potentially unset modification keys.
+        task_id: ID of the task to update.
+        data: Validation model containing explicit modification keys.
 
     Returns:
-        The updated Task, or None if the record evaluating `task_id` is missing.
+        The updated Task, or None if the record mapping evaluates missing.
     """
     db_task = db.get(Task, task_id)
     if not db_task:
@@ -72,8 +71,7 @@ def update_task(db: Session, task_id: int, data: TaskUpdate) -> Task | None:
     if not update_data:
         return db_task
 
-    for key, value in update_data.items():
-        setattr(db_task, key, value)
+    db_task.sqlmodel_update(update_data)
 
     db.add(db_task)
     db.commit()

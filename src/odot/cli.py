@@ -8,9 +8,12 @@ from rich.prompt import Prompt
 from typing_extensions import Annotated
 import importlib.metadata
 from sqlmodel import Session
+from typing import Any
 
 from odot import core, database
 from odot.models import TaskCreate, TaskUpdate
+
+DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 app = typer.Typer(
     name="odot", help="A minimalist CLI task manager.", no_args_is_help=True
@@ -114,7 +117,7 @@ def show(
     table.add_row("Status", "Done" if task.is_done else "Pending")
 
     local_time = task.created_at.astimezone()
-    table.add_row("Created At", local_time.strftime("%Y-%m-%d %H:%M:%S"))
+    table.add_row("Created At", local_time.strftime(DATETIME_FORMAT))
 
     console.print(table)
 
@@ -173,15 +176,16 @@ def update(
     if task_id is None:
         task_id = prompt_task_selection(db, "update")
 
-    update_kwargs = {}
-    if content is not None:
-        update_kwargs["content"] = content
-    if priority is not None:
-        update_kwargs["priority"] = priority
-    if category is not None:
-        update_kwargs["category"] = category
-    if done is not None:
-        update_kwargs["is_done"] = done
+    # Map the explicitly provided arguments into our update explicitly checking local scope
+    provided_args = {
+        "content": content,
+        "priority": priority,
+        "category": category,
+        "is_done": done,
+    }
+    update_kwargs: dict[str, Any] = {
+        k: v for k, v in provided_args.items() if v is not None
+    }
 
     # If no flags are provided, ask interactively via a checkbox form
     if not update_kwargs:
