@@ -5,10 +5,14 @@ description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Kyle O'Malley", email = "j.kyle.omalley@gmail.com" }]
 requires-python = ">=3.10"
-dependencies = ["rich>=14.3.2", "sqlmodel>=0.0.33", "typer>=0.23.0"]
+dependencies = [
+    "rich>=14.3.2",
+    "sqlmodel>=0.0.33",
+    "typer>=0.24.1",
+]
 
 [project.scripts]
-odot = "odot.main:main"
+odot = "odot.cli:main"
 
 [dependency-groups]
 dev = [
@@ -17,6 +21,7 @@ dev = [
     "ruff>=0.15.1",
     "ty>=0.0.16",
     "pre-commit>=3.7.1",
+    "typer[all]>=0.24.1",
 ]
 
 [tool.ruff.lint.pydocstyle]
