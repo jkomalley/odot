@@ -51,3 +51,14 @@ clean:
     rm -rf .pytest_cache .ruff_cache
     find . -type d -name "__pycache__" -exec rm -rf {} +
     find . -type f -name "*.pyc" -delete
+
+# Upgrade uv.lock and sync
+lock-upgrade:
+    uv lock --upgrade
+    uv sync
+    git add pyproject.toml uv.lock
+    git commit -m "chore: update dependencies" || true
+
+# Bump project version (usage: just bump-version <major|minor|patch|dev|beta|alpha|rc>)
+bump-version part:
+    uv version --bump {{part}}
