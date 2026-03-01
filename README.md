@@ -81,10 +81,10 @@ odot show 1
 
 ### Updating a Task
 
-Update the properties of an existing task. If you run `odot update` without providing any update flags, it will launch a multi-select interactive checklist allowing you to pick exactly which fields to change.
+Update the properties of an existing task. If you run `odot update` without providing a task ID, it will gracefully open an interactive selection menu to pick a task. Subsequently, if you don't provide any explicit update flags, it will launch a multi-select interactive checklist allowing you to pick exactly which fields to change.
 
 ```bash
-# Interactive mode
+# Fully interactive mode (Prompts for task, then prompts for fields)
 odot update
 
 # Explicit mode
@@ -93,9 +93,10 @@ odot update 1 --content "Revised task name" --done --priority 2
 
 ### Removing a Task
 
-Delete a task from the database permanently. `odot` will prompt you for confirmation before execution unless you provide the `--force` flag.
+Delete a task from the database permanently. If you don't provide an ID, `odot` will open the interactive selection menu so you can browse for the task to delete. By default, `odot` prompts you for confirmation before execution unless you provide the `--force` flag.
 
 ```bash
+# Interactive task selection mapping
 odot rm
 odot rm 1
 odot rm 1 --force
