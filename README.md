@@ -104,11 +104,12 @@ odot rm 1 --force
 
 ## Development
 
-If you wish to contribute or modify `odot` locally, ensure you have `uv` installed.
+If you wish to contribute or modify `odot` locally, ensure you have `uv` (for Python dependency management), `gh` (the GitHub CLI, for workflow automation), and `just` (the recipe task runner) installed.
 
 1. Clone the repository.
 2. Run `uv sync` to install dependencies.
-3. Use the included `just` workflows to run checks and tests:
+3. Authenticate the GitHub CLI via `gh auth login`.
+4. Use the included `just` workflows to run checks and tests:
 
 ```bash
 just test        # Run the pytest suite natively
