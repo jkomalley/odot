@@ -1,8 +1,39 @@
 """Tests for database layer."""
 
+import os
+import pytest
 from pathlib import Path
 
 from odot import database
+
+
+@pytest.fixture(autouse=True)
+def restore_database_module():
+    """Ensure database.py is cleanly reloaded and independent for each test."""
+    import importlib
+
+    # Store the original environment state
+    original_env = os.environ.get("ODOT_DB_PATH")
+
+    yield
+
+    # Restore the environment completely
+    if original_env is not None:
+        os.environ["ODOT_DB_PATH"] = original_env
+    else:
+        os.environ.pop("ODOT_DB_PATH", None)
+
+    # Dispose of whatever engine was left mapped
+    if getattr(database, "engine", None):
+        database.engine.dispose()
+
+    # Reload the module to restore to original test state universally
+    importlib.reload(database)
+
+    # Dispose the reloaded engine so it doesn't leak either!
+    # (Other tests use the mocked `session` fixture, so we don't need this global engine open)
+    if getattr(database, "engine", None):
+        database.engine.dispose()
 
 
 def test_database_url_and_engine():
