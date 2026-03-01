@@ -9,7 +9,7 @@ default:
 # Initialize the development environment
 install:
     uv sync
-    pre-commit install
+    uv run pre-commit install
 
 # Run the CLI app locally. Usage: just run --help
 run *args:
