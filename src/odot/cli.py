@@ -126,7 +126,7 @@ def show(
 def list_tasks(
     ctx: typer.Context,
     done: Annotated[
-        bool | None, typer.Option("-d/-p", "--done/--pending", help="Filter by status")
+        bool | None, typer.Option("-d/-t", "--done/--todo", help="Filter by status")
     ] = None,
 ):
     """List tasks, optionally filtered by status."""
@@ -168,7 +168,7 @@ def update(
     ] = None,
     done: Annotated[
         bool | None,
-        typer.Option("-d/-p", "--done/--pending", help="Update completion status"),
+        typer.Option("-d/-t", "--done/--todo", help="Update completion status"),
     ] = None,
 ):
     """Update properties of an existing task."""
