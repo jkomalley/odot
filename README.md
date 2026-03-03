@@ -66,8 +66,8 @@ odot list
 You can optionally filter the list by status:
 
 ```bash
-odot list --done      # Show only completed tasks
-odot list --pending   # Show only open tasks
+odot list --done   # Show only completed tasks
+odot list --todo   # Show only open tasks
 ```
 
 ### Showing a Task
