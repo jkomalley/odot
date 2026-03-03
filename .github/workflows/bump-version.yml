@@ -40,7 +40,7 @@ jobs:
         run: just bump-version ${{ inputs.part }}
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "chore: bump version to ${{ inputs.part }}"
           title: "chore: bump version to ${{ inputs.part }}"
