@@ -130,10 +130,13 @@ def list_tasks(
     done: Annotated[
         bool | None, typer.Option("-d/-t", "--done/--todo", help="Filter by status")
     ] = None,
+    category: Annotated[
+        str | None, typer.Option("-c", "--category", help="Filter by category")
+    ] = None,
 ):
     """List tasks, optionally filtered by status."""
     db = ctx.obj
-    tasks = core.list_tasks(db=db, is_done=done)
+    tasks = core.list_tasks(db=db, is_done=done, category=category)
 
     if not tasks:
         console.print("No tasks found.")
