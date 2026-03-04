@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import SQLModel, create_engine
 
 # Evaluate ODOT_DB_PATH for configuration overrides, falling back to a local default
 _db_env = os.environ.get("ODOT_DB_PATH")
@@ -28,9 +28,3 @@ def create_db_and_tables() -> None:
     from odot.models import Task  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
-
-
-def get_session():
-    """Dependency provider for database sessions."""
-    with Session(engine) as session:
-        yield session
