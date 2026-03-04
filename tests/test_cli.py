@@ -9,13 +9,12 @@ runner = CliRunner()
 
 @pytest.fixture(autouse=True)
 def override_db_dependency(monkeypatch, session):
-    """Override the database session for all CLI tests via monkeypatching the context provider."""
-    from odot import database
+    """Override the database session for all CLI tests via monkeypatching Session."""
 
-    def mock_get_session():
-        yield session
+    def mock_session(*args, **kwargs):
+        return session
 
-    monkeypatch.setattr(database, "get_session", mock_get_session)
+    monkeypatch.setattr("odot.cli.Session", mock_session)
 
 
 def test_init_db():

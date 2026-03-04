@@ -82,16 +82,3 @@ def test_database_directory_env_override(tmp_path, monkeypatch):
 
     assert target_dir.exists()
     assert database.DB_FILE == target_file
-
-
-def test_get_session():
-    """Test the session generator yields successfully."""
-    gen = database.get_session()
-    session = next(gen)
-    assert session is not None
-
-    # Assert generator handles exit smoothly
-    try:
-        next(gen)
-    except StopIteration:
-        pass
