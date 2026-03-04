@@ -145,6 +145,21 @@ def test_list_command_empty(session):
     assert "No tasks found" in result.stdout
 
 
+def test_search_command():
+    """Test search command filtering by phrase."""
+    runner.invoke(app, ["add", "Unique search phrase"])
+    runner.invoke(app, ["add", "Another completely different task"])
+
+    result = runner.invoke(app, ["search", "search phrase"])
+    assert result.exit_code == 0
+    assert "Unique search phrase" in result.stdout
+    assert "different task" not in result.stdout
+
+    empty = runner.invoke(app, ["search", "nonexistent"])
+    assert empty.exit_code == 0
+    assert "No tasks matching 'nonexistent' found." in empty.stdout
+
+
 def test_update_command(monkeypatch):
     """Test updating a task via CLI."""
     runner.invoke(app, ["add", "Old Task"])

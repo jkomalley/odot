@@ -1,6 +1,6 @@
 """Core library logic (CRUD operations)."""
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from odot.models import Task, TaskCreate, TaskUpdate
 
@@ -53,6 +53,20 @@ def list_tasks(
         statement = statement.where(Task.is_done == is_done)
     if category is not None:
         statement = statement.where(Task.category == category)
+    return list(db.exec(statement).all())
+
+
+def search_tasks(db: Session, phrase: str) -> list[Task]:
+    """Search tasks by content phrase.
+
+    Args:
+        db: SQLModel Session instance.
+        phrase: The substring to search for (case-insensitive).
+
+    Returns:
+        A list of matching Task schemas.
+    """
+    statement = select(Task).where(col(Task.content).contains(phrase))
     return list(db.exec(statement).all())
 
 

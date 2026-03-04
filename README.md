@@ -72,6 +72,15 @@ odot list --category work      # Show only tasks in the 'work' category
 odot list -c personal --todo   # Show open tasks in the 'personal' category
 ```
 
+### Searching Tasks
+
+Find tasks whose content contains a specific phrase.
+
+```bash
+odot search "groceries"
+odot search "quarterly report"
+```
+
 ### Showing a Task
 
 View detailed properties and timestamps for a specific task. If you don't know the ID, simply run `odot show` without arguments to open the interactive selection menu.

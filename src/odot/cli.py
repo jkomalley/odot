@@ -159,6 +159,35 @@ def list_tasks(
 
 
 @app.command()
+def search(
+    ctx: typer.Context,
+    phrase: Annotated[str, typer.Argument(help="Phrase to search for in task content")],
+):
+    """Search for tasks containing a specific phrase."""
+    db = ctx.obj
+    tasks = core.search_tasks(db=db, phrase=phrase)
+
+    if not tasks:
+        console.print(f"No tasks matching '{phrase}' found.")
+        return
+
+    table = Table(title="Search Results")
+    table.add_column("ID", justify="right", style="cyan", no_wrap=True)
+    table.add_column("Status", style="green")
+    table.add_column("Priority", justify="right")
+    table.add_column("Category", style="blue")
+    table.add_column("Content")
+
+    for task in tasks:
+        status_str = "[green]✓[/]" if task.is_done else "[yellow]○[/]"
+        table.add_row(
+            str(task.id), status_str, str(task.priority), task.category, task.content
+        )
+
+    console.print(table)
+
+
+@app.command()
 def update(
     ctx: typer.Context,
     task_id: Annotated[int | None, typer.Argument(help="Task ID to update")] = None,
