@@ -63,11 +63,13 @@ View all of your current tasks in a formatted table.
 odot list
 ```
 
-You can optionally filter the list by status:
+You can optionally filter the list by status and category:
 
 ```bash
-odot list --done   # Show only completed tasks
-odot list --todo   # Show only open tasks
+odot list --done               # Show only completed tasks
+odot list --todo               # Show only open tasks
+odot list --category work      # Show only tasks in the 'work' category
+odot list -c personal --todo   # Show open tasks in the 'personal' category
 ```
 
 ### Showing a Task
