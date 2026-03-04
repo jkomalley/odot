@@ -35,12 +35,15 @@ def get_task(db: Session, task_id: int) -> Task | None:
     return db.get(Task, task_id)
 
 
-def list_tasks(db: Session, is_done: bool | None = None) -> list[Task]:
+def list_tasks(
+    db: Session, is_done: bool | None = None, category: str | None = None
+) -> list[Task]:
     """Retrieve tasks with optional filtering.
 
     Args:
         db: SQLModel Session instance.
         is_done: Filters tasks precisely if set; otherwise returns all tasks.
+        category: Filters tasks by category if set; otherwise returns all tasks.
 
     Returns:
         A list of matching Task schemas.
@@ -48,6 +51,8 @@ def list_tasks(db: Session, is_done: bool | None = None) -> list[Task]:
     statement = select(Task)
     if is_done is not None:
         statement = statement.where(Task.is_done == is_done)
+    if category is not None:
+        statement = statement.where(Task.category == category)
     return list(db.exec(statement).all())
 
 

@@ -36,9 +36,11 @@ def test_get_task(session):
 def test_list_tasks(session):
     """Test standard and conditional retrieval logic mappings."""
     # Seed 3 tasks
-    core.add_task(db=session, task_data=TaskCreate(content="Task 1"))
-    t2 = core.add_task(db=session, task_data=TaskCreate(content="Task 2"))
-    core.add_task(db=session, task_data=TaskCreate(content="Task 3"))
+    core.add_task(db=session, task_data=TaskCreate(content="Task 1", category="work"))
+    t2 = core.add_task(
+        db=session, task_data=TaskCreate(content="Task 2", category="personal")
+    )
+    core.add_task(db=session, task_data=TaskCreate(content="Task 3", category="work"))
 
     assert t2.id is not None
     # Mark task 2 explicitly as 'done' for filters
@@ -57,6 +59,15 @@ def test_list_tasks(session):
     completed_tasks = core.list_tasks(db=session, is_done=True)
     assert len(completed_tasks) == 1
     assert completed_tasks[0].id == t2.id
+
+    # Test conditional filtering mapping 'category'
+    work_tasks = core.list_tasks(db=session, category="work")
+    assert len(work_tasks) == 2
+    assert all(t.category == "work" for t in work_tasks)
+
+    # Test combined filtering (category + is_done)
+    pending_work_tasks = core.list_tasks(db=session, is_done=False, category="work")
+    assert len(pending_work_tasks) == 2
 
 
 def test_update_task(session):

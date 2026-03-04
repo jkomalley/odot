@@ -111,13 +111,31 @@ def test_show_command(monkeypatch):
 def test_list_command():
     """Test listing tasks via CLI."""
     # Add some tasks
-    runner.invoke(app, ["add", "Task A"])
-    runner.invoke(app, ["add", "Task B"])
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+    runner.invoke(app, ["add", "Task B", "--category", "personal"])
+    runner.invoke(app, ["add", "Task C", "--category", "work"])
+
+    # Mark Task B as done
+    runner.invoke(app, ["update", "2", "--done"])
 
     result = runner.invoke(app, ["list"])
     assert result.exit_code == 0
     assert "Task A" in result.stdout
     assert "Task B" in result.stdout
+    assert "Task C" in result.stdout
+
+    # Test category filtering
+    cat_result = runner.invoke(app, ["list", "--category", "work"])
+    assert cat_result.exit_code == 0
+    assert "Task A" in cat_result.stdout
+    assert "Task B" not in cat_result.stdout
+    assert "Task C" in cat_result.stdout
+
+    # Test combined filtering
+    combined_result = runner.invoke(app, ["list", "-c", "personal", "--done"])
+    assert combined_result.exit_code == 0
+    assert "Task B" in combined_result.stdout
+    assert "Task A" not in combined_result.stdout
 
 
 def test_list_command_empty(session):
