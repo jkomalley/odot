@@ -7,6 +7,10 @@
 
 A minimalist, interactive command-line task manager built with Python.
 
+<p align="center">
+  <img src="demo.gif" alt="odot demo" width="800">
+</p>
+
 ---
 
 ## Features
