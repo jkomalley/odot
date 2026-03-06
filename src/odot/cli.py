@@ -122,6 +122,10 @@ def show(
     local_time = task.created_at.astimezone()
     table.add_row("Created At", local_time.strftime(DATETIME_FORMAT))
 
+    if task.updated_at:
+        local_updated = task.updated_at.astimezone()
+        table.add_row("Updated At", local_updated.strftime(DATETIME_FORMAT))
+
     console.print(table)
 
 

@@ -45,6 +45,7 @@ def test_task_table_defaults():
     assert task.id is None
     assert task.is_done is False
     assert task.created_at is not None
+    assert task.updated_at is None
 
 
 def test_task_update_optional_fields():

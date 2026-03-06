@@ -113,6 +113,9 @@ def update_task(db: Session, task_id: int, data: TaskUpdate) -> Task | None:
         return db_task
 
     db_task.sqlmodel_update(update_data)
+    from datetime import datetime, timezone
+
+    db_task.updated_at = datetime.now(timezone.utc)
 
     db.add(db_task)
     db.commit()
