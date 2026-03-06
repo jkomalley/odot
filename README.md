@@ -1,6 +1,6 @@
-# odot
-
 <!-- markdownlint-disable MD033 -->
+<h1 align="center">odot</h1>
+
 <p align="center">
   <a href="https://github.com/jkomalley/odot/actions/workflows/ci.yml"><img src="https://github.com/jkomalley/odot/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pypi.org/project/odot/"><img src="https://img.shields.io/pypi/v/odot" alt="PyPI"></a>
