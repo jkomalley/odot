@@ -1,188 +1,104 @@
 # odot
 
+[![CI](https://github.com/jkomalley/odot/actions/workflows/ci.yml/badge.svg)](https://github.com/jkomalley/odot/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/odot)](https://pypi.org/project/odot/)
+[![Python](https://img.shields.io/pypi/pyversions/odot)](https://pypi.org/project/odot/)
+[![License: MIT](https://img.shields.io/github/license/jkomalley/odot)](LICENSE)
+
 A minimalist, interactive command-line task manager built with Python.
 
-`odot` provides a fast and intuitive way to manage your daily tasks directly from your terminal. Built upon Typer and SQLModel, it offers a robust SQLite-backed database with an elegant Terminal User Interface (TUI) for interactive task selection.
+---
 
 ## Features
 
-- **Interactive Prompts**: Execute commands without remembering IDs. If you forget to pass an argument, `odot` will display a dynamic Arrow-Key navigable menu to select tasks.
-- **Rich Output**: Clean, formatted tables utilizing the `rich` library for high readability.
-- **Filtering**: Easily filter missing or completed tasks right from the list command.
-- **Local First**: Stores your data securely in a local `.sqlite` database configurable via environment variables.
-- **Zero Configuration**: Works out of the box with intelligent defaults.
+- **Interactive prompts** — arrow-key navigable menus when you omit an argument
+- **Rich output** — clean, formatted tables via the `rich` library
+- **Filtering & sorting** — slice your task list by status, category, priority, or date
+- **Import / export** — move tasks between machines with JSON
+- **Reports** — generate Markdown or HTML reports with one command
+- **Local first** — SQLite-backed, zero-configuration, works offline
 
 ## Installation
 
-You can install `odot` directly from PyPI using pip, pipx, or uv.
-
-Using pip:
-
 ```bash
-pip install odot
-```
-
-Using pipx (Recommended for isolated CLI application installations):
-
-```bash
+# pipx (recommended)
 pipx install odot
-```
 
-Using uv:
-
-```bash
+# uv
 uv tool install odot
+
+# pip
+pip install odot
 ```
 
 ## Quick Start
 
-Once installed, initialize the database to create the required tables on your local machine.
-
 ```bash
-odot init-db
+odot init-db                          # create the local database
+odot add "Buy groceries" -p 2 -c home # add a task
+odot list                             # view all tasks
+odot list --todo --sort priority      # open tasks, sorted by priority
 ```
 
-By default, the database is stored at `~/.odot/db.sqlite`. You can override this by setting the `ODOT_DB_PATH` environment variable.
+> The database defaults to `~/.odot/db.sqlite`.
+> Override with the `ODOT_DB_PATH` environment variable.
 
 ## Usage
 
-### Adding a Task
-
-You can add a task by passing the content directly, or you can supply priority (`-p`) and category (`-c`) flags.
+### Managing Tasks
 
 ```bash
-odot add "Buy groceries for dinner"
-odot add "Submit quarterly report" -p 3 -c work
+odot add "Submit quarterly report" -p 3 -c work   # add
+odot show                                          # interactive detail view
+odot update                                        # interactive update
+odot update 1 --content "Revised name" --done      # explicit update
+odot rm                                            # interactive delete
+odot rm 1 --force                                  # skip confirmation
 ```
 
-### Listing Tasks
-
-View all of your current tasks in a formatted table.
-
-```bash
-odot list
-```
-
-You can optionally filter the list by status and category:
-
-```bash
-odot list --done               # Show only completed tasks
-odot list --todo               # Show only open tasks
-odot list --category work      # Show only tasks in the 'work' category
-odot list -c personal --todo   # Show open tasks in the 'personal' category
-```
-
-You can also sort tasks by specific attributes (`priority`, `date`, `category`, `status`) and optionally reverse the sorting order:
-
-```bash
-odot list --sort priority            # Sort by priority (ascending)
-odot list --sort priority --reverse  # Sort by priority (descending)
-odot list --sort date                # Sort by creation date
-odot list --sort category -r         # Sort by category (descending)
-```
-
-### Searching Tasks
-
-Find tasks whose content contains a specific phrase.
+### Searching & Filtering
 
 ```bash
 odot search "groceries"
-odot search "quarterly report"
+odot list --done                       # completed tasks only
+odot list -c work --todo               # open work tasks
+odot list --sort priority --reverse    # descending priority
 ```
 
-### Showing a Task
-
-View detailed properties and timestamps for a specific task. If you don't know the ID, simply run `odot show` without arguments to open the interactive selection menu.
+### Import, Export & Reports
 
 ```bash
-odot show
-odot show 1
+odot export backup.json --todo         # export open tasks
+odot import backup.json                # append from file
+odot import backup.json --clear        # replace all tasks
+odot report tasks.md --sort priority   # Markdown report
+odot report work.html --todo -c work   # filtered HTML report
 ```
 
-### Updating a Task
-
-Update the properties of an existing task. If you run `odot update` without providing a task ID, it will gracefully open an interactive selection menu to pick a task. Subsequently, if you don't provide any explicit update flags, it will launch a multi-select interactive checklist allowing you to pick exactly which fields to change.
+### Bulk Operations
 
 ```bash
-# Fully interactive mode (Prompts for task, then prompts for fields)
-odot update
-
-# Explicit mode
-odot update 1 --content "Revised task name" --done --priority 2
-```
-
-### Removing a Task
-
-Delete a task from the database permanently. If you don't provide an ID, `odot` will open the interactive selection menu so you can browse for the task to delete. By default, `odot` prompts you for confirmation before execution unless you provide the `--force` flag.
-
-```bash
-# Interactive task selection mapping
-odot rm
-odot rm 1
-odot rm 1 --force
-```
-
-### Exporting and Importing Tasks
-
-You can natively export your tasks as a JSON payload, or import them directly tracking native mappings conditionally. The `export` command dynamically evaluates filters natively identical to `odot list`, returning exactly matching subsets uniquely. When you want to preview the payload without saving to a file, omitting the path arguments effectively routes the output to standard out securely conditionally securely natively.
-
-When invoking `odot import`, by default, imported JSON items are appended to your active configuration safely. Utilizing the `--clear` flag purges the existing active tasks conditionally allowing importing exact subsets seamlessly without overlaps natively.
-
-```bash
-# Export all open tasks explicitly conditionally
-odot export backup.json --todo
-
-# Conditionally output beautifully tracking the whole file explicitly visually validating
-odot export --pretty
-
-# Bulk import append matching fields safely extending implicitly natively securely elegantly selectively seamlessly conditionally
-odot import backup.json
-
-# Conditionally clear active records wrapping exception safely handling execution dynamically executing conditionally
-odot import backup.json --clear
-```
-
-### Generating Reports (Markdown/HTML)
-
-Generate human-readable reports of your tasks. `odot report` automatically detects the output format based on the file extension (`.md` or `.html`) and supports the same filtering and sorting flags as the `list` command.
-
-```bash
-# Generate a Markdown report of all tasks sorted by priority
-odot report tasks.md --sort priority
-
-# Generate an HTML report of only open tasks in the 'work' category
-odot report work_pending.html --todo --category work
-```
-
-### Cleaning Completed Tasks
-
-Delete all tasks currently marked as 'Done' from the database in bulk. Because this drops data, `odot` prompts for confirmation unless you use the `--force` flag.
-
-```bash
-odot clean          # Prompts for confirmation
-odot clean --force  # Skip confirmation
-```
-
-### Purging All Tasks
-
-Delete all tasks from the database entirely, resetting your task list. Because this is a destructive action, `odot` will display a warning and ask for explicit confirmation unless you use the `--force` flag.
-
-```bash
-odot purge          # Prompts for confirmation with a warning
-odot purge --force  # Skip confirmation
+odot clean          # remove completed tasks (prompts for confirmation)
+odot clean --force  # skip confirmation
+odot purge          # remove all tasks (prompts for confirmation)
+odot purge --force  # skip confirmation
 ```
 
 ## Development
 
-If you wish to contribute or modify `odot` locally, ensure you have `uv` (for Python dependency management), `gh` (the GitHub CLI, for workflow automation), and `just` (the recipe task runner) installed.
-
-1. Clone the repository.
-2. Run `uv sync` to install dependencies.
-3. Authenticate the GitHub CLI via `gh auth login`.
-4. Use the included `just` workflows to run checks and tests:
+Prerequisites: [`uv`](https://docs.astral.sh/uv/), [`just`](https://github.com/casey/just), [`gh`](https://cli.github.com/)
 
 ```bash
-just test        # Run the pytest suite natively
-just test-cov    # Run tests and enforce 100% coverage
-just check       # Run Ruff formatting, linting, ty typechecks, and test loops
+git clone https://github.com/jkomalley/odot.git && cd odot
+uv sync
 ```
+
+```bash
+just test          # run pytest
+just test-cov      # enforce 100% coverage
+just check         # ruff + ty + tests
+```
+
+## License
+
+[MIT](LICENSE)
