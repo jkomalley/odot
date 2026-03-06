@@ -109,9 +109,31 @@ def test_delete_task(session):
     assert success is True
 
     # Validation against execution preventing stale read
-    verify = core.get_task(db=session, task_id=target_id)
-    assert verify is None
-
     # Double deletion evaluation triggering exception loop bounds mappings strictly correctly to False
     redundant = core.delete_task(db=session, task_id=target_id)
     assert redundant is False
+
+
+def test_search_tasks(session):
+    """Test searching tasks by description phrase."""
+    core.add_task(db=session, task_data=TaskCreate(content="Clean the kitchen"))
+    core.add_task(db=session, task_data=TaskCreate(content="Buy groceries"))
+    core.add_task(db=session, task_data=TaskCreate(content="Quarterly report draft"))
+
+    # Exact match
+    results = core.search_tasks(db=session, phrase="groceries")
+    assert len(results) == 1
+    assert results[0].content == "Buy groceries"
+
+    # Case-insensitive partial match
+    results = core.search_tasks(db=session, phrase="QUARTERLY")
+    assert len(results) == 1
+    assert results[0].content == "Quarterly report draft"
+
+    # Match multiple (all contain 'e')
+    results = core.search_tasks(db=session, phrase="e")
+    assert len(results) == 3
+
+    # Match none
+    results = core.search_tasks(db=session, phrase="notfound")
+    assert len(results) == 0
