@@ -1,13 +1,21 @@
 # odot
 
-[![CI](https://github.com/jkomalley/odot/actions/workflows/ci.yml/badge.svg)](https://github.com/jkomalley/odot/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/odot)](https://pypi.org/project/odot/)
-[![Python](https://img.shields.io/pypi/pyversions/odot)](https://pypi.org/project/odot/)
-[![License: MIT](https://img.shields.io/github/license/jkomalley/odot)](LICENSE)
+<!-- markdownlint-disable MD033 -->
+<p align="center">
+  <a href="https://github.com/jkomalley/odot/actions/workflows/ci.yml"><img src="https://github.com/jkomalley/odot/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/odot/"><img src="https://img.shields.io/pypi/v/odot" alt="PyPI"></a>
+  <a href="https://pypi.org/project/odot/"><img src="https://img.shields.io/pypi/pyversions/odot" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/jkomalley/odot" alt="License: MIT"></a>
+</p>
 
-A minimalist, interactive command-line task manager built with Python.
+<p align="center">
+  A minimalist, interactive command-line task manager built with Python.
+</p>
 
-![odot demo](assets/demo.gif)
+<p align="center">
+  <img src="assets/demo.gif" alt="odot demo" width="800">
+</p>
+<!-- markdownlint-enable MD033 -->
 
 ---
 
