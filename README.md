@@ -142,6 +142,18 @@ odot import backup.json
 odot import backup.json --clear
 ```
 
+### Generating Reports (Markdown/HTML)
+
+Generate human-readable reports of your tasks. `odot report` automatically detects the output format based on the file extension (`.md` or `.html`) and supports the same filtering and sorting flags as the `list` command.
+
+```bash
+# Generate a Markdown report of all tasks sorted by priority
+odot report tasks.md --sort priority
+
+# Generate an HTML report of only open tasks in the 'work' category
+odot report work_pending.html --todo --category work
+```
+
 ### Cleaning Completed Tasks
 
 Delete all tasks currently marked as 'Done' from the database in bulk. Because this drops data, `odot` prompts for confirmation unless you use the `--force` flag.

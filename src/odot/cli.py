@@ -410,6 +410,63 @@ def import_cmd(
         raise typer.Exit(code=1)
 
 
+@app.command(name="report")
+def report_cmd(
+    ctx: typer.Context,
+    path: Annotated[Path, typer.Argument(help="File path to save the report to")],
+    done: Annotated[
+        bool | None, typer.Option("-d/-t", "--done/--todo", help="Filter by status")
+    ] = None,
+    category: Annotated[
+        str | None, typer.Option("-c", "--category", help="Filter by category")
+    ] = None,
+    sort: Annotated[
+        str | None,
+        typer.Option(
+            "-s",
+            "--sort",
+            help="Sort by field: priority, date, category, status",
+        ),
+    ] = None,
+    reverse: Annotated[
+        bool,
+        typer.Option("-r", "--reverse", help="Reverse the sort order (descending)"),
+    ] = False,
+):
+    """Generate a Markdown or HTML report of tasks."""
+    db = ctx.obj
+
+    if sort and sort.lower() not in ["priority", "date", "category", "status"]:
+        console.print(f"[bold red]Invalid sort field: {sort}[/bold red]")
+        raise typer.Exit(code=1)
+
+    tasks = core.list_tasks(
+        db=db, is_done=done, category=category, sort_by=sort, reverse=reverse
+    )
+
+    if not tasks:
+        console.print("No tasks found matching criteria.")
+        return
+
+    extension = path.suffix.lower()
+    if extension == ".md":
+        content = core.generate_markdown_report(tasks)
+    elif extension in [".html", ".htm"]:
+        content = core.generate_html_report(tasks)
+    else:
+        console.print(
+            f"[bold red]Unsupported format: {extension}. Use .md or .html[/bold red]"
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        path.write_text(content, encoding="utf-8")
+        console.print(f"[green]Successfully generated report at {path}[/green]")
+    except Exception as e:
+        console.print(f"[bold red]Failed to write report: {e}[/bold red]")
+        raise typer.Exit(code=1)
+
+
 @app.command(name="init-db")
 def init_db():
     """Initialize the database."""
