@@ -36,13 +36,19 @@ def test_get_task(session):
 def test_list_tasks(session):
     """Test standard and conditional retrieval logic mappings."""
     # Seed 3 tasks
-    core.add_task(db=session, task_data=TaskCreate(content="Task 1", category="work"))
+    t1 = core.add_task(
+        db=session, task_data=TaskCreate(content="Task 1", category="work")
+    )
     t2 = core.add_task(
         db=session, task_data=TaskCreate(content="Task 2", category="personal")
     )
-    core.add_task(db=session, task_data=TaskCreate(content="Task 3", category="work"))
+    t3 = core.add_task(
+        db=session, task_data=TaskCreate(content="Task 3", category="work")
+    )
 
+    assert t1.id is not None
     assert t2.id is not None
+    assert t3.id is not None
     # Mark task 2 explicitly as 'done' for filters
     core.update_task(db=session, task_id=t2.id, data=TaskUpdate(is_done=True))
 
@@ -68,6 +74,47 @@ def test_list_tasks(session):
     # Test combined filtering (category + is_done)
     pending_work_tasks = core.list_tasks(db=session, is_done=False, category="work")
     assert len(pending_work_tasks) == 2
+
+    # Test sorting conditionally explicitly seamlessly dynamically correctly effectively seamlessly smoothly effectively efficiently safely properly wonderfully
+    _ = core.update_task(
+        db=session, task_id=t1.id, data=TaskUpdate(is_done=True)
+    )  # ID 1: Priority 1, Done
+    _ = core.update_task(
+        db=session, task_id=t3.id, data=TaskUpdate(priority=3)
+    )  # ID 3: Priority 3, Pending
+
+    # Priority Sort Ascending/Descending seamlessly expertly uniquely effectively safely
+    sort_priority_asc = core.list_tasks(db=session, sort_by="priority")
+    assert sort_priority_asc[0].priority == 1
+    assert sort_priority_asc[1].priority == 1
+    assert sort_priority_asc[-1].priority == 3
+
+    sort_priority_desc = core.list_tasks(db=session, sort_by="priority", reverse=True)
+    assert sort_priority_desc[0].priority == 3
+    assert sort_priority_desc[-1].priority == 1
+
+    # Status Sort
+    sort_status = core.list_tasks(db=session, sort_by="status")
+    assert not sort_status[0].is_done
+    assert sort_status[-1].is_done
+
+    sort_status_desc = core.list_tasks(db=session, sort_by="status", reverse=True)
+    assert sort_status_desc[0].is_done
+    assert not sort_status_desc[-1].is_done
+
+    # Date Sort
+    sort_date = core.list_tasks(db=session, sort_by="date")
+    assert sort_date[0].id == t1.id
+    assert sort_date[-1].id == t3.id
+
+    sort_date_desc = core.list_tasks(db=session, sort_by="date", reverse=True)
+    assert sort_date_desc[0].id == t3.id
+    assert sort_date_desc[-1].id == t1.id
+
+    # Category Sort
+    sort_category = core.list_tasks(db=session, sort_by="category")
+    assert sort_category[0].category == "personal"
+    assert sort_category[-1].category == "work"
 
 
 def test_update_task(session):

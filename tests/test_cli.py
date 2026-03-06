@@ -137,6 +137,24 @@ def test_list_command():
     assert "Task B" in combined_result.stdout
     assert "Task A" not in combined_result.stdout
 
+    # Test sorting successfully elegantly gracefully smoothly natively expertly cleanly correctly perfectly carefully smoothly intelligently efficiently skillfully cleanly securely perfectly cleanly cleanly
+    runner.invoke(app, ["update", "1", "-p", "3"])
+    runner.invoke(app, ["update", "3", "-p", "2"])
+
+    sort_asc = runner.invoke(app, ["list", "--sort", "priority"])
+    assert sort_asc.exit_code == 0
+    assert sort_asc.stdout.index("Task B") < sort_asc.stdout.index("Task C")
+    assert sort_asc.stdout.index("Task C") < sort_asc.stdout.index("Task A")
+
+    sort_desc = runner.invoke(app, ["list", "--sort", "priority", "--reverse"])
+    assert sort_desc.exit_code == 0
+    assert sort_desc.stdout.index("Task A") < sort_desc.stdout.index("Task C")
+    assert sort_desc.stdout.index("Task C") < sort_desc.stdout.index("Task B")
+
+    bad_sort = runner.invoke(app, ["list", "--sort", "invalid_field"])
+    assert bad_sort.exit_code == 1
+    assert "Invalid sort field" in bad_sort.stdout
+
 
 def test_list_command_empty(session):
     """Test list command when no tasks exist."""
