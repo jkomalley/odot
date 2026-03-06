@@ -279,6 +279,28 @@ def rm(
 
 
 @app.command()
+def clean(
+    ctx: typer.Context,
+    force: Annotated[
+        bool, typer.Option("-f", "--force", help="Force deletion without confirmation")
+    ] = False,
+):
+    """Delete all completed tasks from the database."""
+    db = ctx.obj
+
+    if not force:
+        typer.confirm(
+            "Are you sure you want to delete all completed tasks?", abort=True
+        )
+
+    count = core.delete_completed_tasks(db=db)
+    if count == 0:
+        console.print("[yellow]No completed tasks to delete.[/yellow]")
+    else:
+        console.print(f"[green]Deleted {count} completed tasks.[/green]")
+
+
+@app.command()
 def purge(
     ctx: typer.Context,
     force: Annotated[

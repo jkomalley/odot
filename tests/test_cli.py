@@ -264,6 +264,38 @@ def test_rm_command(monkeypatch):
     assert "Task 999 not found" in missing.stdout
 
 
+def test_clean_command():
+    """Test cleaning completed tasks via CLI."""
+    runner.invoke(app, ["add", "Keep me 1"])
+    runner.invoke(app, ["add", "Delete me 1"])
+    runner.invoke(app, ["add", "Keep me 2"])
+    runner.invoke(app, ["add", "Delete me 2"])
+
+    runner.invoke(app, ["update", "2", "--done"])
+    runner.invoke(app, ["update", "4", "--done"])
+
+    # Base abort interaction
+    aborted = runner.invoke(app, ["clean"], input="n\n")
+    assert aborted.exit_code == 1
+    assert "Are you sure you want to delete all completed tasks?" in aborted.stdout
+
+    # Actually execute cleanly via prompt
+    confirmed = runner.invoke(app, ["clean"], input="y\n")
+    assert confirmed.exit_code == 0
+    assert "Deleted 2 completed tasks." in confirmed.stdout
+
+    # List mapping validation ensuring properties weren't wiped entirely globally
+    list_after = runner.invoke(app, ["list"])
+    assert "Keep me 1" in list_after.stdout
+    assert "Keep me 2" in list_after.stdout
+    assert "Delete me 1" not in list_after.stdout
+
+    # Now verify mapping gracefully returns yellow context missing records safely
+    empty = runner.invoke(app, ["clean", "--force"])
+    assert empty.exit_code == 0
+    assert "No completed tasks to delete." in empty.stdout
+
+
 def test_purge_command():
     """Test purging all tasks via CLI."""
     runner.invoke(app, ["add", "Delete me 1"])
