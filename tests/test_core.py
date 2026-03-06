@@ -1,7 +1,7 @@
 """Unit tests for core logic CRUD operations."""
 
 from odot import core
-from odot.models import TaskCreate, TaskUpdate
+from odot.models import TaskCreate, TaskUpdate, Task
 
 
 def test_add_task(session):
@@ -318,3 +318,42 @@ def test_import_tasks(session, tmp_path):
     assert count == 2
     tasks_after_clear = core.list_tasks(db=session)
     assert len(tasks_after_clear) == 2
+
+
+def test_generate_markdown_report():
+    """Test generating a markdown formatted report string."""
+    tasks = [
+        Task(content="Work Task", priority=3, category="work", is_done=False),
+        Task(content="Personal Task", priority=1, category="personal", is_done=True),
+    ]
+    report = core.generate_markdown_report(tasks)
+
+    assert "# Odot Task Report" in report
+    assert "## Personal" in report
+    assert "- [x] Personal Task (Priority: 1)" in report
+    assert "## Work" in report
+    assert "- [ ] Work Task (Priority: 3)" in report
+
+    empty_report = core.generate_markdown_report([])
+    assert "No tasks found." in empty_report
+
+
+def test_generate_html_report():
+    """Test generating an HTML formatted report string."""
+    tasks = [
+        Task(content="Work Task", priority=3, category="work", is_done=False),
+        Task(content="Personal Task", priority=1, category="personal", is_done=True),
+    ]
+    report = core.generate_html_report(tasks)
+
+    assert "<!DOCTYPE html>" in report
+    assert "<h1>Odot Task Report</h1>" in report
+    assert "<h2>Personal</h2>" in report
+    assert "<h2>Work</h2>" in report
+    assert "Personal Task" in report
+    assert "Work Task" in report
+    assert "class='task-item done'" in report
+    assert "class='task-item pending'" in report
+
+    empty_report = core.generate_html_report([])
+    assert "<p>No tasks found.</p>" in empty_report

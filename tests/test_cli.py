@@ -431,6 +431,67 @@ def test_import_command(tmp_path):
     assert "Failed to import tasks" in bad_run.stdout
 
 
+def test_report_command(session, tmp_path):
+    """Test generating Markdown and HTML reports natively gracefully securely."""
+    # Seed DB
+    runner.invoke(app, ["add", "Work task", "-c", "work", "-p", "3"])
+    runner.invoke(app, ["add", "Personal task", "-c", "personal", "-p", "1"])
+    runner.invoke(app, ["update", "2", "--done"])
+
+    # Test Markdown
+    md_file = tmp_path / "report.md"
+    result_md = runner.invoke(app, ["report", str(md_file)])
+    assert result_md.exit_code == 0
+    assert "Successfully generated report" in result_md.stdout
+    assert md_file.exists()
+    md_content = md_file.read_text()
+    assert "# Odot Task Report" in md_content
+    assert "## Work" in md_content
+    assert "- [ ] Work task (Priority: 3)" in md_content
+    assert "## Personal" in md_content
+    assert "- [x] Personal task (Priority: 1)" in md_content
+
+    # Test HTML
+    html_file = tmp_path / "report.html"
+    result_html = runner.invoke(app, ["report", str(html_file), "--done"])
+    assert result_html.exit_code == 0
+    assert html_file.exists()
+    html_content = html_file.read_text()
+    assert "<title>Odot Task Report</title>" in html_content
+    assert "Personal task" in html_content
+    assert "Work task" not in html_content  # filtered
+
+    # Test Unsupported Format
+    txt_file = tmp_path / "report.txt"
+    result_txt = runner.invoke(app, ["report", str(txt_file)])
+    assert result_txt.exit_code == 1
+    assert "Unsupported format" in result_txt.stdout
+    assert not txt_file.exists()
+
+    # Test Empty Reporting
+    runner.invoke(app, ["clean"])  # get rid of the completed task
+    runner.invoke(app, ["purge"], input="y\n")  # clear everything
+    empty_file = tmp_path / "empty.md"
+    result_empty = runner.invoke(app, ["report", str(empty_file)])
+    assert result_empty.exit_code == 0
+    assert "No tasks found" in result_empty.stdout
+    assert not empty_file.exists()
+
+    # Test Invalid Sort
+    bad_sort = runner.invoke(app, ["report", str(md_file), "--sort", "invalid"])
+    assert bad_sort.exit_code == 1
+    assert "Invalid sort field" in bad_sort.stdout
+
+    # Test Exception on Write
+    # Feed it a directory instead of a file to trigger write_text failure
+    dir_path = tmp_path / "dir.md"
+    dir_path.mkdir()
+    runner.invoke(app, ["add", "Valid Task"])
+    error_run = runner.invoke(app, ["report", str(dir_path)])
+    assert error_run.exit_code == 1
+    assert "Failed to write report" in error_run.stdout
+
+
 def test_main_execution(monkeypatch):
     """Test the main entrypoint function directly."""
     called = False

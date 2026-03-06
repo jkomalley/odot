@@ -254,3 +254,104 @@ def import_tasks(db: Session, path: Path | str, clear: bool = False) -> int:
         count += 1
 
     return count
+
+
+def generate_markdown_report(tasks: list[Task]) -> str:
+    """Generate a Markdown report of tasks.
+
+    Args:
+        tasks: List of Task objects.
+
+    Returns:
+        A Markdown formatted string representing the tasks.
+    """
+    from datetime import datetime
+
+    lines = [
+        "# Odot Task Report",
+        f"*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
+        "",
+    ]
+
+    if not tasks:
+        lines.append("No tasks found.")
+        return "\n".join(lines)
+
+    # Group by category (requires sorting by category first)
+    sorted_tasks = sorted(tasks, key=lambda t: t.category)
+    from itertools import groupby
+
+    for category, category_tasks in groupby(sorted_tasks, key=lambda t: t.category):
+        lines.append(f"## {category.title()}")
+        for task in category_tasks:
+            checkbox = "[x]" if task.is_done else "[ ]"
+            lines.append(f"- {checkbox} {task.content} (Priority: {task.priority})")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def generate_html_report(tasks: list[Task]) -> str:
+    """Generate an HTML report of tasks.
+
+    Args:
+        tasks: List of Task objects.
+
+    Returns:
+        An HTML formatted string representing the tasks.
+    """
+    from datetime import datetime
+    from itertools import groupby
+
+    css = """
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; color: #333; }
+    h1 { border-bottom: 2px solid #eaeaea; padding-bottom: 10px; }
+    h2 { color: #555; margin-top: 30px; }
+    .task-list { list-style-type: none; padding-left: 0; }
+    .task-item { padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; }
+    .task-item:last-child { border-bottom: none; }
+    .checkbox { margin-right: 12px; font-weight: bold; width: 24px; text-align: center; }
+    .done .checkbox { color: #2ea043; }
+    .pending .checkbox { color: #d9d9d9; }
+    .content { flex-grow: 1; }
+    .done .content { text-decoration: line-through; color: #888; }
+    .priority { font-size: 0.85em; background: #f0f4f8; padding: 2px 6px; border-radius: 4px; color: #586069; }
+    .meta { font-size: 0.9em; color: #666; font-style: italic; }
+    """
+
+    html = [
+        "<!DOCTYPE html>",
+        "<html lang='en'>",
+        "<head>",
+        "    <meta charset='UTF-8'>",
+        "    <meta name='viewport' content='width=device-width, initial-scale=1.0'>",
+        "    <title>Odot Task Report</title>",
+        f"    <style>{css}</style>",
+        "</head>",
+        "<body>",
+        "    <h1>Odot Task Report</h1>",
+        f"    <p class='meta'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>",
+    ]
+
+    if not tasks:
+        html.append("    <p>No tasks found.</p>")
+    else:
+        sorted_tasks = sorted(tasks, key=lambda t: t.category)
+        for category, category_tasks in groupby(sorted_tasks, key=lambda t: t.category):
+            html.append(f"    <h2>{category.title()}</h2>")
+            html.append("    <ul class='task-list'>")
+            for task in category_tasks:
+                status_class = "done" if task.is_done else "pending"
+                checkbox = "✓" if task.is_done else "○"
+                html.append(f"        <li class='task-item {status_class}'>")
+                html.append(f"            <span class='checkbox'>{checkbox}</span>")
+                html.append(f"            <span class='content'>{task.content}</span>")
+                html.append(
+                    f"            <span class='priority'>Priority: {task.priority}</span>"
+                )
+                html.append("        </li>")
+            html.append("    </ul>")
+
+    html.extend(["</body>", "</html>"])
+
+    return "\n".join(html)
