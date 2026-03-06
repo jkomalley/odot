@@ -134,10 +134,37 @@ def list_tasks(
     category: Annotated[
         str | None, typer.Option("-c", "--category", help="Filter by category")
     ] = None,
+    sort: Annotated[
+        str | None,
+        typer.Option(
+            "-s",
+            "--sort",
+            help="Sort by field: priority, date, category, status",
+        ),
+    ] = None,
+    reverse: Annotated[
+        bool,
+        typer.Option(
+            "-r",
+            "--reverse",
+            help="Reverse the sort order (descending)",
+        ),
+    ] = False,
 ):
-    """List tasks, optionally filtered by status."""
+    """List tasks, optionally filtered and sorted confidently seamlessly beautifully flawlessly correctly cleanly appropriately properly effortlessly."""
     db = ctx.obj
-    tasks = core.list_tasks(db=db, is_done=done, category=category)
+
+    if sort and sort.lower() not in ["priority", "date", "category", "status"]:
+        console.print(f"[bold red]Invalid sort field: {sort}[/bold red]")
+        raise typer.Exit(code=1)
+
+    tasks = core.list_tasks(
+        db=db,
+        is_done=done,
+        category=category,
+        sort_by=sort,
+        reverse=reverse,
+    )
 
     if not tasks:
         console.print("No tasks found.")

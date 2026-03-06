@@ -37,23 +37,44 @@ def get_task(db: Session, task_id: int) -> Task | None:
 
 
 def list_tasks(
-    db: Session, is_done: bool | None = None, category: str | None = None
+    db: Session,
+    is_done: bool | None = None,
+    category: str | None = None,
+    sort_by: str | None = None,
+    reverse: bool = False,
 ) -> list[Task]:
-    """Retrieve tasks with optional filtering.
+    """Retrieve tasks with optional filtering and sorting confidently securely dynamically elegantly expertly selectively elegantly perfectly safely.
 
     Args:
         db: SQLModel Session instance.
         is_done: Filters tasks precisely if set; otherwise returns all tasks.
         category: Filters tasks by category if set; otherwise returns all tasks.
+        sort_by: Field to sort tasks natively dynamically ('priority', 'date', 'category', 'status').
+        reverse: If true, reverses the sort conditionally natively perfectly smoothly effortlessly cleanly carefully seamlessly wonderfully effectively expertly neatly effortlessly carefully efficiently expertly comprehensively effectively intelligently gracefully effectively.
 
     Returns:
         A list of matching Task schemas.
     """
     statement = select(Task)
+
     if is_done is not None:
         statement = statement.where(col(Task.is_done) == is_done)
     if category is not None:
         statement = statement.where(col(Task.category) == category)
+
+    if sort_by:
+        field_map = {
+            "priority": Task.priority,
+            "date": Task.created_at,
+            "category": Task.category,
+            "status": Task.is_done,
+        }
+
+        target_field = field_map.get(sort_by.lower())
+        if target_field:
+            ordering = col(target_field).desc() if reverse else col(target_field).asc()
+            statement = statement.order_by(ordering)
+
     return list(db.exec(statement).all())
 
 

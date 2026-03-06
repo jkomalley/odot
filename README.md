@@ -72,6 +72,15 @@ odot list --category work      # Show only tasks in the 'work' category
 odot list -c personal --todo   # Show open tasks in the 'personal' category
 ```
 
+You can also sort tasks by specific attributes (`priority`, `date`, `category`, `status`) and optionally reverse the sorting order:
+
+```bash
+odot list --sort priority            # Sort by priority (ascending)
+odot list --sort priority --reverse  # Sort by priority (descending)
+odot list --sort date                # Sort by creation date
+odot list --sort category -r         # Sort by category (descending)
+```
+
 ### Searching Tasks
 
 Find tasks whose content contains a specific phrase.
