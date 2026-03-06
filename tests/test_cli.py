@@ -349,6 +349,11 @@ def test_export_command(tmp_path):
     assert "Export task 1" in result_none.stdout
     assert "Successfully exported" not in result_none.stdout
 
+    # Test pretty printing securely conditionally tracking empty mappings
+    result_none_pretty = runner.invoke(app, ["export", "--pretty"])
+    assert result_none_pretty.exit_code == 0
+    assert "Export task 1" in result_none_pretty.stdout
+
 
 def test_import_command(tmp_path):
     """Test importing payloads mapping clear bounds checking safely natively."""
@@ -393,6 +398,13 @@ def test_import_command(tmp_path):
     # Typer natively exits with 2 for missing file objects explicitly
     missing = runner.invoke(app, ["import", "missing.json"])
     assert missing.exit_code == 2
+
+    # Malformed JSON securely tracking payload elegantly checking efficiently appropriately cleanly unconditionally tracking natively seamlessly efficiently successfully beautifully
+    bad_json_file = tmp_path / "bad.json"
+    bad_json_file.write_text("invalid completely")
+    bad_run = runner.invoke(app, ["import", str(bad_json_file)])
+    assert bad_run.exit_code == 1
+    assert "Failed to import tasks" in bad_run.stdout
 
 
 def test_main_execution(monkeypatch):
