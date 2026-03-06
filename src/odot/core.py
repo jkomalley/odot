@@ -1,6 +1,7 @@
 """Core library logic (CRUD operations)."""
 
 from sqlmodel import Session, col, select
+from pathlib import Path
 
 from odot.models import Task, TaskCreate, TaskUpdate
 
@@ -150,3 +151,82 @@ def delete_all_tasks(db: Session) -> int:
     result = db.exec(statement)
     db.commit()
     return result.rowcount
+
+
+def export_tasks(
+    db: Session,
+    path: Path | str | None = None,
+    is_done: bool | None = None,
+    category: str | None = None,
+    pretty: bool = False,
+) -> int:
+    """Export tasks to a JSON file.
+
+    Args:
+        db: SQLModel Session instance.
+        path: File path to save the JSON output.
+        is_done: Optional filter by completion status.
+        category: Optional filter by category.
+        pretty: Whether to format the JSON string with indentation.
+
+    Returns:
+        The total number of exported records.
+    """
+    import json
+
+    tasks = list_tasks(db=db, is_done=is_done, category=category)
+    export_data = [task.model_dump(mode="json") for task in tasks]
+
+    if path is None:
+        if pretty:
+            print(json.dumps(export_data, indent=2))
+        else:
+            print(json.dumps(export_data))
+    else:
+        file_path = Path(path)
+        with file_path.open("w", encoding="utf-8") as f:
+            if pretty:
+                json.dump(export_data, f, indent=2)
+            else:
+                json.dump(export_data, f)
+
+    return len(tasks)
+
+
+def import_tasks(db: Session, path: Path | str, clear: bool = False) -> int:
+    """Import tasks from a JSON file.
+
+    Args:
+        db: SQLModel Session instance.
+        path: File path mapping to the JSON input.
+        clear: Whether to purge existing tasks before importing.
+
+    Returns:
+        The total number of imported records.
+    """
+    import json
+
+    if clear:
+        delete_all_tasks(db=db)
+
+    file_path = Path(path)
+    with file_path.open("r", encoding="utf-8") as f:
+        import_data = json.load(f)
+
+    count = 0
+    for item in import_data:
+        # Extract fields skipping metadata like id/created_at allowing new insertion defaults
+        task_data = TaskCreate(
+            content=item["content"],
+            priority=item.get("priority", 1),
+            category=item.get("category", "general"),
+        )
+        task = add_task(db=db, task_data=task_data)
+
+        # Manually apply completion status if previously true
+        if item.get("is_done") and task.id is not None:
+            update_task(db=db, task_id=task.id, data=TaskUpdate(is_done=True))
+
+        count += 1
+
+    return count
