@@ -70,7 +70,7 @@ def main_callback(
     """A minimalist CLI task manager."""
     # Ensure ctx.obj is initialized
     if getattr(ctx, "obj", None) is None:
-        session = Session(database.engine)
+        session = Session(database.get_engine())
         ctx.obj = session
         ctx.call_on_close(session.close)
 
