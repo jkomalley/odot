@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/demo.gif" alt="odot demo" width="800">
+  <img src="https://raw.githubusercontent.com/jkomalley/odot/refs/heads/main/assets/demo.gif" alt="odot demo" width="800">
 </p>
 <!-- markdownlint-enable MD033 -->
 
