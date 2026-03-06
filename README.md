@@ -31,11 +31,11 @@
 ## Installation
 
 ```bash
-# pipx (recommended)
-pipx install odot
-
-# uv
+# uv (recommended)
 uv tool install odot
+
+# pipx
+pipx install odot
 
 # pip
 pip install odot
