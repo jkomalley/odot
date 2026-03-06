@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/jkomalley/odot/actions/workflows/ci.yml/badge.svg)](https://github.com/jkomalley/odot/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/odot)](https://pypi.org/project/odot/)
-[![Python: 3.10–3.14](https://img.shields.io/badge/python-3.10–3.14-blue)](https://github.com/jkomalley/odot)
+[![Python](https://img.shields.io/pypi/pyversions/odot)](https://pypi.org/project/odot/)
 [![License: MIT](https://img.shields.io/github/license/jkomalley/odot)](LICENSE)
 
 A minimalist, interactive command-line task manager built with Python.
