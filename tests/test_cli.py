@@ -321,6 +321,92 @@ def test_purge_command():
     assert "Purged 0 tasks" in force.stdout
 
 
+def test_export_command(tmp_path):
+    """Test exporting JSON payloads via CLI mapping conditional filters."""
+    runner.invoke(app, ["add", "Export task 1", "--category", "work"])
+    runner.invoke(app, ["add", "Export task 2"])
+
+    export_file = tmp_path / "export.json"
+
+    # Export matching filtered bounds cleanly
+    result = runner.invoke(
+        app, ["export", str(export_file), "--category", "work", "--pretty"]
+    )
+    assert result.exit_code == 0
+    assert "Successfully exported 1 tasks" in result.stdout
+
+    import json
+
+    with open(export_file, "r") as f:
+        data = json.load(f)
+        assert len(data) == 1
+        assert data[0]["content"] == "Export task 1"
+
+    # Test executing JSON dynamically mapping bounds returning empty execution tracking natively tracking safely explicitly wrapping null exceptions tracking exclusively.
+    # Exporting natively optionally gracefully correctly executing natively tracking unconditionally exclusively printing bounds safely efficiently wrapping seamlessly mapping output cleanly natively
+    result_none = runner.invoke(app, ["export", "--category", "work"])
+    assert result_none.exit_code == 0
+    assert "Export task 1" in result_none.stdout
+    assert "Successfully exported" not in result_none.stdout
+
+    # Test pretty printing securely conditionally tracking empty mappings
+    result_none_pretty = runner.invoke(app, ["export", "--pretty"])
+    assert result_none_pretty.exit_code == 0
+    assert "Export task 1" in result_none_pretty.stdout
+
+
+def test_import_command(tmp_path):
+    """Test importing payloads mapping clear bounds checking safely natively."""
+    import json
+
+    import_file = tmp_path / "import.json"
+
+    payload = [
+        {
+            "content": "CLI Import Task",
+            "priority": 3,
+            "category": "imported",
+            "is_done": False,
+        }
+    ]
+    with open(import_file, "w") as f:
+        json.dump(payload, f)
+
+    runner.invoke(app, ["add", "Pre existing task"])
+
+    # Normal import
+    result = runner.invoke(app, ["import", str(import_file)])
+    assert result.exit_code == 0
+    assert "Successfully imported 1 tasks" in result.stdout
+
+    # Clear abort logic testing explicitly evaluating safety checks
+    aborted = runner.invoke(app, ["import", str(import_file), "--clear"], input="n\n")
+    assert aborted.exit_code == 1
+    assert "Are you incredibly sure you want to clear the database?" in aborted.stdout
+
+    # Clear confirmed natively mapping securely tracking reset conditionally explicitly
+    confirmed = runner.invoke(app, ["import", str(import_file), "--clear"], input="y\n")
+    assert confirmed.exit_code == 0
+    assert "Successfully imported 1 tasks" in confirmed.stdout
+
+    # Verify ONLY the imported task natively exists
+    lists = runner.invoke(app, ["list"])
+    assert "CLI Import Task" in lists.stdout
+    assert "Pre existing task" not in lists.stdout
+
+    # Missing file exception handling testing mapped bounds explicitly gracefully skipping execution safely natively tracking validation elegantly
+    # Typer natively exits with 2 for missing file objects explicitly
+    missing = runner.invoke(app, ["import", "missing.json"])
+    assert missing.exit_code == 2
+
+    # Malformed JSON securely tracking payload elegantly checking efficiently appropriately cleanly unconditionally tracking natively seamlessly efficiently successfully beautifully
+    bad_json_file = tmp_path / "bad.json"
+    bad_json_file.write_text("invalid completely")
+    bad_run = runner.invoke(app, ["import", str(bad_json_file)])
+    assert bad_run.exit_code == 1
+    assert "Failed to import tasks" in bad_run.stdout
+
+
 def test_main_execution(monkeypatch):
     """Test the main entrypoint function directly."""
     called = False

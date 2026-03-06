@@ -113,6 +113,26 @@ odot rm 1
 odot rm 1 --force
 ```
 
+### Exporting and Importing Tasks
+
+You can natively export your tasks as a JSON payload, or import them directly tracking native mappings conditionally. The `export` command dynamically evaluates filters natively identical to `odot list`, returning exactly matching subsets uniquely. When you want to preview the payload without saving to a file, omitting the path arguments effectively routes the output to standard out securely conditionally securely natively.
+
+When invoking `odot import`, by default, imported JSON items are appended to your active configuration safely. Utilizing the `--clear` flag purges the existing active tasks conditionally allowing importing exact subsets seamlessly without overlaps natively.
+
+```bash
+# Export all open tasks explicitly conditionally
+odot export backup.json --todo
+
+# Conditionally output beautifully tracking the whole file explicitly visually validating
+odot export --pretty
+
+# Bulk import append matching fields safely extending implicitly natively securely elegantly selectively seamlessly conditionally
+odot import backup.json
+
+# Conditionally clear active records wrapping exception safely handling execution dynamically executing conditionally
+odot import backup.json --clear
+```
+
 ### Cleaning Completed Tasks
 
 Delete all tasks currently marked as 'Done' from the database in bulk. Because this drops data, `odot` prompts for confirmation unless you use the `--force` flag.

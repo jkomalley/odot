@@ -183,3 +183,89 @@ def test_delete_all_tasks(session):
     # Ensure empty DB drops 0 safely
     count_again = core.delete_all_tasks(db=session)
     assert count_again == 0
+
+
+def test_export_tasks(session, tmp_path):
+    """Test JSON exporting with filtering."""
+    core.add_task(
+        db=session, task_data=TaskCreate(content="Dummy task 1", category="work")
+    )
+    t2 = core.add_task(
+        db=session, task_data=TaskCreate(content="Dummy task 2", category="personal")
+    )
+    core.add_task(
+        db=session, task_data=TaskCreate(content="Dummy task 3", category="work")
+    )
+
+    # Mark task 2 explicitly as 'done' for filters
+    assert t2.id is not None
+    core.update_task(db=session, task_id=t2.id, data=TaskUpdate(is_done=True))
+
+    import json
+
+    export_file = tmp_path / "export.json"
+
+    # Export all
+    count = core.export_tasks(db=session, path=export_file)
+    assert count == 3
+    with open(export_file, "r") as f:
+        data = json.load(f)
+        assert len(data) == 3
+
+    # Export filtered explicitly by category natively mapped mapping correctly tracked string conversions resolving safely
+    count = core.export_tasks(
+        db=session, path=export_file, category="work", pretty=True
+    )
+    assert count == 2
+    with open(export_file, "r") as f:
+        data = json.load(f)
+        assert len(data) == 2
+        assert "Dummy task 1" in str(data)
+        assert "Dummy task 3" in str(data)
+
+    # Test Optional null mapping printing seamlessly returning bounds mapping exclusively natively efficiently correctly evaluating explicitly conditionally evaluating
+    import io
+    import sys
+
+    captured_output = io.StringIO()
+    sys.stdout = captured_output
+    try:
+        count = core.export_tasks(db=session, pretty=False)
+        assert count == 3
+        data = json.loads(captured_output.getvalue())
+        assert len(data) == 3
+    finally:
+        sys.stdout = sys.__stdout__
+
+
+def test_import_tasks(session, tmp_path):
+    """Test importing JSON mappings natively tracking properties correctly."""
+    import json
+
+    import_file = tmp_path / "import.json"
+
+    # Write some dummy payload explicitly
+    payload = [
+        {"content": "Import 1", "priority": 3, "category": "work", "is_done": False},
+        {"content": "Import 2", "priority": 1, "category": "personal", "is_done": True},
+    ]
+    with open(import_file, "w") as f:
+        json.dump(payload, f)
+
+    # Ensure current DB maintains properties natively tracking pre-seed data
+    core.add_task(db=session, task_data=TaskCreate(content="Pre payload task"))
+
+    # Import extending default DB
+    count = core.import_tasks(db=session, path=str(import_file))
+    assert count == 2
+
+    tasks = core.list_tasks(db=session)
+    assert len(tasks) == 3
+    assert any(t.content == "Import 1" and t.priority == 3 for t in tasks)
+    assert any(t.content == "Import 2" and t.is_done is True for t in tasks)
+
+    # Import using `clear` resolving full purge tracking reset explicitly
+    count = core.import_tasks(db=session, path=str(import_file), clear=True)
+    assert count == 2
+    tasks_after_clear = core.list_tasks(db=session)
+    assert len(tasks_after_clear) == 2

@@ -9,6 +9,7 @@ from typing_extensions import Annotated
 import importlib.metadata
 from sqlmodel import Session
 from typing import Any
+from pathlib import Path
 
 from odot import core, database
 from odot.models import TaskCreate, TaskUpdate
@@ -320,6 +321,62 @@ def purge(
 
     count = core.delete_all_tasks(db=db)
     console.print(f"[green]Purged {count} tasks from the database.[/green]")
+
+
+@app.command(name="export")
+def export_cmd(
+    ctx: typer.Context,
+    path: Annotated[
+        Path | None, typer.Argument(help="File path to save JSON to")
+    ] = None,
+    done: Annotated[
+        bool | None, typer.Option("-d/-t", "--done/--todo", help="Filter by status")
+    ] = None,
+    category: Annotated[
+        str | None, typer.Option("-c", "--category", help="Filter by category")
+    ] = None,
+    pretty: Annotated[
+        bool, typer.Option("-p", "--pretty", help="Pretty print JSON output")
+    ] = False,
+):
+    """Export tasks to a JSON file."""
+    db = ctx.obj
+
+    count = core.export_tasks(
+        db=db, path=path, is_done=done, category=category, pretty=pretty
+    )
+    if path:
+        console.print(f"[green]Successfully exported {count} tasks to {path}[/green]")
+
+
+@app.command(name="import")
+def import_cmd(
+    ctx: typer.Context,
+    path: Annotated[
+        Path,
+        typer.Argument(help="File path to read JSON from", exists=True, dir_okay=False),
+    ],
+    clear: Annotated[
+        bool, typer.Option("--clear", help="Purge existing database before importing")
+    ] = False,
+):
+    """Import tasks from a JSON file."""
+    db = ctx.obj
+
+    if clear:
+        console.print(
+            "[bold red]WARNING: This will permanently delete ALL existing tasks before importing.[/bold red]"
+        )
+        typer.confirm(
+            "Are you incredibly sure you want to clear the database?", abort=True
+        )
+
+    try:
+        count = core.import_tasks(db=db, path=path, clear=clear)
+        console.print(f"[green]Successfully imported {count} tasks from {path}[/green]")
+    except Exception as e:
+        console.print(f"[bold red]Failed to import tasks: {e}[/bold red]")
+        raise typer.Exit(code=1)
 
 
 @app.command(name="init-db")
