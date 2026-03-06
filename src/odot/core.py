@@ -50,9 +50,9 @@ def list_tasks(
     """
     statement = select(Task)
     if is_done is not None:
-        statement = statement.where(Task.is_done == is_done)
+        statement = statement.where(col(Task.is_done) == is_done)
     if category is not None:
-        statement = statement.where(Task.category == category)
+        statement = statement.where(col(Task.category) == category)
     return list(db.exec(statement).all())
 
 
@@ -116,6 +116,23 @@ def delete_task(db: Session, task_id: int) -> bool:
     db.delete(db_task)
     db.commit()
     return True
+
+
+def delete_completed_tasks(db: Session) -> int:
+    """Delete all tasks marked as done from the database.
+
+    Args:
+        db: SQLModel Session instance.
+
+    Returns:
+        The total number of deleted Task records.
+    """
+    from sqlmodel import delete
+
+    statement = delete(Task).where(col(Task.is_done))
+    result = db.exec(statement)
+    db.commit()
+    return result.rowcount
 
 
 def delete_all_tasks(db: Session) -> int:

@@ -113,6 +113,15 @@ odot rm 1
 odot rm 1 --force
 ```
 
+### Cleaning Completed Tasks
+
+Delete all tasks currently marked as 'Done' from the database in bulk. Because this drops data, `odot` prompts for confirmation unless you use the `--force` flag.
+
+```bash
+odot clean          # Prompts for confirmation
+odot clean --force  # Skip confirmation
+```
+
 ### Purging All Tasks
 
 Delete all tasks from the database entirely, resetting your task list. Because this is a destructive action, `odot` will display a warning and ask for explicit confirmation unless you use the `--force` flag.

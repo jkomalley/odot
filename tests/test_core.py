@@ -139,6 +139,34 @@ def test_search_tasks(session):
     assert len(results) == 0
 
 
+def test_delete_completed_tasks(session):
+    """Test dropping only records marked as done."""
+    t1 = core.add_task(db=session, task_data=TaskCreate(content="Dummy task 1"))
+    t2 = core.add_task(db=session, task_data=TaskCreate(content="Dummy task 2"))
+    t3 = core.add_task(db=session, task_data=TaskCreate(content="Dummy task 3"))
+
+    assert t1.id is not None
+    assert t3.id is not None
+
+    # Mark task 1 and 3 as done
+    core.update_task(db=session, task_id=t1.id, data=TaskUpdate(is_done=True))
+    core.update_task(db=session, task_id=t3.id, data=TaskUpdate(is_done=True))
+
+    assert len(core.list_tasks(db=session)) == 3
+
+    count = core.delete_completed_tasks(db=session)
+    assert count == 2
+
+    # Verify only task 2 remains
+    remaining = core.list_tasks(db=session)
+    assert len(remaining) == 1
+    assert remaining[0].id == t2.id
+
+    # Verify repeated calls return 0
+    count_again = core.delete_completed_tasks(db=session)
+    assert count_again == 0
+
+
 def test_delete_all_tasks(session):
     """Test dropping all records entirely regardless of status."""
     core.add_task(db=session, task_data=TaskCreate(content="Dummy task 1"))
