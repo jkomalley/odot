@@ -95,6 +95,12 @@ def test_show_command(monkeypatch):
     assert result.exit_code == 0
     assert "Show me" in result.stdout
     assert "Pending" in result.stdout
+    assert "Updated At" not in result.stdout
+
+    runner.invoke(app, ["update", "1", "-p", "3"])
+    updated_result = runner.invoke(app, ["show", "1"])
+    assert updated_result.exit_code == 0
+    assert "Updated At" in updated_result.stdout
 
     # Test missing task
     missing = runner.invoke(app, ["show", "999"])

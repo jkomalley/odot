@@ -132,6 +132,8 @@ def test_update_task(session):
         updated.content == "Old Task"
     )  # Stays evaluating explicitly old contents cleanly
     assert updated.priority == 3
+    assert updated.updated_at is not None
+    assert updated.updated_at > updated.created_at
 
     # Check targeting a missing ID evaluation tracking safely
     missing = core.update_task(
