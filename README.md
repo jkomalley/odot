@@ -113,6 +113,15 @@ odot rm 1
 odot rm 1 --force
 ```
 
+### Purging All Tasks
+
+Delete all tasks from the database entirely, resetting your task list. Because this is a destructive action, `odot` will display a warning and ask for explicit confirmation unless you use the `--force` flag.
+
+```bash
+odot purge          # Prompts for confirmation with a warning
+odot purge --force  # Skip confirmation
+```
+
 ## Development
 
 If you wish to contribute or modify `odot` locally, ensure you have `uv` (for Python dependency management), `gh` (the GitHub CLI, for workflow automation), and `just` (the recipe task runner) installed.

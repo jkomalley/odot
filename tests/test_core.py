@@ -137,3 +137,21 @@ def test_search_tasks(session):
     # Match none
     results = core.search_tasks(db=session, phrase="notfound")
     assert len(results) == 0
+
+
+def test_delete_all_tasks(session):
+    """Test dropping all records entirely regardless of status."""
+    core.add_task(db=session, task_data=TaskCreate(content="Dummy task 1"))
+    core.add_task(db=session, task_data=TaskCreate(content="Dummy task 2"))
+    core.add_task(db=session, task_data=TaskCreate(content="Dummy task 3"))
+
+    assert len(core.list_tasks(db=session)) == 3
+
+    count = core.delete_all_tasks(db=session)
+    assert count == 3
+
+    assert len(core.list_tasks(db=session)) == 0
+
+    # Ensure empty DB drops 0 safely
+    count_again = core.delete_all_tasks(db=session)
+    assert count_again == 0

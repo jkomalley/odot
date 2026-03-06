@@ -278,6 +278,28 @@ def rm(
         raise typer.Exit(code=1)
 
 
+@app.command()
+def purge(
+    ctx: typer.Context,
+    force: Annotated[
+        bool, typer.Option("-f", "--force", help="Force deletion without confirmation")
+    ] = False,
+):
+    """Delete all tasks, completely resetting the database."""
+    db = ctx.obj
+
+    if not force:
+        console.print(
+            "[bold red]WARNING: This will permanently delete ALL tasks.[/bold red]"
+        )
+        typer.confirm(
+            "Are you incredibly sure you want to purge all records?", abort=True
+        )
+
+    count = core.delete_all_tasks(db=db)
+    console.print(f"[green]Purged {count} tasks from the database.[/green]")
+
+
 @app.command(name="init-db")
 def init_db():
     """Initialize the database."""
