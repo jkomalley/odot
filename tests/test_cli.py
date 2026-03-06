@@ -264,6 +264,31 @@ def test_rm_command(monkeypatch):
     assert "Task 999 not found" in missing.stdout
 
 
+def test_purge_command():
+    """Test purging all tasks via CLI."""
+    runner.invoke(app, ["add", "Delete me 1"])
+    runner.invoke(app, ["add", "Delete me 2"])
+
+    # Check that it aborts without --force or "y"
+    aborted = runner.invoke(app, ["purge"], input="n\n")
+    assert aborted.exit_code == 1
+    assert "WARNING: This will permanently delete ALL tasks." in aborted.stdout
+
+    # Verify tasks are still there
+    list_after_abort = runner.invoke(app, ["list"])
+    assert "Delete me 1" in list_after_abort.stdout
+
+    # Check mapping prompt affirmatively natively
+    confirmed = runner.invoke(app, ["purge"], input="y\n")
+    assert confirmed.exit_code == 0
+    assert "Purged 2 tasks" in confirmed.stdout
+
+    # Now with 0 tasks and --force
+    force = runner.invoke(app, ["purge", "--force"])
+    assert force.exit_code == 0
+    assert "Purged 0 tasks" in force.stdout
+
+
 def test_main_execution(monkeypatch):
     """Test the main entrypoint function directly."""
     called = False

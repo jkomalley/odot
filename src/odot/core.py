@@ -116,3 +116,20 @@ def delete_task(db: Session, task_id: int) -> bool:
     db.delete(db_task)
     db.commit()
     return True
+
+
+def delete_all_tasks(db: Session) -> int:
+    """Delete all tasks from the database.
+
+    Args:
+        db: SQLModel Session instance.
+
+    Returns:
+        The total number of deleted Task records.
+    """
+    from sqlmodel import delete
+
+    statement = delete(Task)
+    result = db.exec(statement)
+    db.commit()
+    return result.rowcount
