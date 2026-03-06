@@ -1,6 +1,6 @@
 [project]
 name = "odot"
-version = "0.2.0"
+version = "0.2.1"
 description = "A minimalist, interactive command-line task manager built with Python."
 readme = "README.md"
 authors = [{ name = "Kyle O'Malley", email = "j.kyle.omalley@gmail.com" }]
