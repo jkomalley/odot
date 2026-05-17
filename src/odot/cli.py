@@ -291,6 +291,40 @@ def update(
 
 
 @app.command()
+def done(
+    ctx: typer.Context,
+    task_id: Annotated[
+        int | None, typer.Argument(help="Task ID to mark as done")
+    ] = None,
+):
+    """Mark a task as done."""
+    db = ctx.obj
+    if task_id is None:
+        task_id = prompt_task_selection(db, "mark done")
+    task = core.update_task(db=db, task_id=task_id, data=TaskUpdate(is_done=True))
+    if not task:
+        console.print(f"[red]Task {task_id} not found.[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]Task {task.id} marked as done.[/green]")
+
+
+@app.command()
+def undo(
+    ctx: typer.Context,
+    task_id: Annotated[int | None, typer.Argument(help="Task ID to re-open")] = None,
+):
+    """Re-open a completed task."""
+    db = ctx.obj
+    if task_id is None:
+        task_id = prompt_task_selection(db, "re-open")
+    task = core.update_task(db=db, task_id=task_id, data=TaskUpdate(is_done=False))
+    if not task:
+        console.print(f"[red]Task {task_id} not found.[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]Task {task.id} re-opened.[/green]")
+
+
+@app.command()
 def rm(
     ctx: typer.Context,
     task_id: Annotated[int | None, typer.Argument(help="Task ID to remove")] = None,

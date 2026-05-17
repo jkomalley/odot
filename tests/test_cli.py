@@ -261,6 +261,49 @@ def test_update_command(monkeypatch):
     assert "Task 999 not found" in missing.stdout
 
 
+def test_done_command(monkeypatch):
+    """Test marking a task as done via the done shortcut command."""
+    runner.invoke(app, ["add", "Finish me"])
+
+    result = runner.invoke(app, ["done", "1"])
+    assert result.exit_code == 0
+    assert "marked as done" in result.stdout
+
+    verify = runner.invoke(app, ["show", "1"])
+    assert "Done" in verify.stdout
+
+    missing = runner.invoke(app, ["done", "999"])
+    assert missing.exit_code == 1
+    assert "Task 999 not found" in missing.stdout
+
+    monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 1)
+    interactive = runner.invoke(app, ["done"])
+    assert interactive.exit_code == 0
+    assert "marked as done" in interactive.stdout
+
+
+def test_undo_command(monkeypatch):
+    """Test re-opening a completed task via the undo shortcut command."""
+    runner.invoke(app, ["add", "Already done"])
+    runner.invoke(app, ["done", "1"])
+
+    result = runner.invoke(app, ["undo", "1"])
+    assert result.exit_code == 0
+    assert "re-opened" in result.stdout
+
+    verify = runner.invoke(app, ["show", "1"])
+    assert "Pending" in verify.stdout
+
+    missing = runner.invoke(app, ["undo", "999"])
+    assert missing.exit_code == 1
+    assert "Task 999 not found" in missing.stdout
+
+    monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 1)
+    interactive = runner.invoke(app, ["undo"])
+    assert interactive.exit_code == 0
+    assert "re-opened" in interactive.stdout
+
+
 def test_rm_command(monkeypatch):
     """Test removing a task via CLI."""
     runner.invoke(app, ["add", "Delete me"])
