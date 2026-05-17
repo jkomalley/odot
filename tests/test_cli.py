@@ -8,13 +8,18 @@ runner = CliRunner()
 
 
 @pytest.fixture(autouse=True)
-def override_db_dependency(monkeypatch, session):
+def override_db_dependency(monkeypatch, session, tmp_path):
     """Override the database session for all CLI tests via monkeypatching Session."""
 
     def mock_session(*args, **kwargs):
         return session
 
     monkeypatch.setattr("odot.cli.Session", mock_session)
+
+    # Provide a pre-existing db path so auto-init doesn't trigger in unrelated tests
+    fake_db = tmp_path / "db.sqlite"
+    fake_db.touch()
+    monkeypatch.setattr("odot.database.get_db_path", lambda: fake_db)
 
 
 def test_init_db():
@@ -518,3 +523,19 @@ def test_module_execution():
     )
     assert result.returncode == 0
     assert "A minimalist CLI task manager." in result.stdout
+
+
+def test_auto_initializes_database(monkeypatch, tmp_path):
+    """First command auto-inits the DB when the file doesn't exist yet."""
+    non_existent = tmp_path / "new_db.sqlite"
+    monkeypatch.setattr("odot.database.get_db_path", lambda: non_existent)
+
+    initialized = []
+    monkeypatch.setattr(
+        "odot.database.create_db_and_tables", lambda: initialized.append(True)
+    )
+
+    result = runner.invoke(app, ["list"])
+    assert result.exit_code == 0
+    assert initialized, "create_db_and_tables should have been called"
+    assert "Database initialized" in result.stdout

@@ -68,8 +68,11 @@ def main_callback(
     ] = None,
 ):
     """A minimalist CLI task manager."""
-    # Ensure ctx.obj is initialized
     if getattr(ctx, "obj", None) is None:
+        db_path = database.get_db_path()
+        if not db_path.exists():
+            database.create_db_and_tables()
+            console.print(f"[dim]Database initialized at {db_path}[/dim]")
         session = Session(database.get_engine())
         ctx.obj = session
         ctx.call_on_close(session.close)
