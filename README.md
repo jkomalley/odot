@@ -44,8 +44,7 @@ pip install odot
 ## Quick Start
 
 ```bash
-odot init-db                          # create the local database
-odot add "Buy groceries" -p 2 -c home # add a task
+odot add "Buy groceries" -p 2 -c home # add a task (database created automatically)
 odot list                             # view all tasks
 odot list --todo --sort priority      # open tasks, sorted by priority
 ```
@@ -60,6 +59,8 @@ odot list --todo --sort priority      # open tasks, sorted by priority
 ```bash
 odot add "Submit quarterly report" -p 3 -c work   # add
 odot show                                          # interactive detail view
+odot done 1                                        # mark task 1 as done
+odot undo 1                                        # re-open task 1
 odot update                                        # interactive update
 odot update 1 --content "Revised name" --done      # explicit update
 odot rm                                            # interactive delete
