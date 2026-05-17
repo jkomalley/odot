@@ -357,3 +357,22 @@ def test_generate_html_report():
 
     empty_report = core.generate_html_report([])
     assert "<p>No tasks found.</p>" in empty_report
+
+
+def test_generate_html_report_escapes_user_content():
+    """HTML special characters in user content must be escaped."""
+    tasks = [
+        Task(
+            content='Review <head> section & fix "quotes"',
+            priority=1,
+            category="<script>alert('xss')</script>",
+            is_done=False,
+        )
+    ]
+    report = core.generate_html_report(tasks)
+
+    assert "<script>" not in report
+    assert "&lt;head&gt;" in report
+    assert "&amp;" in report
+    assert "&quot;quotes&quot;" in report
+    assert "&lt;Script&gt;" in report

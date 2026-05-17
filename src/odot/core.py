@@ -301,6 +301,7 @@ def generate_html_report(tasks: list[Task]) -> str:
         An HTML formatted string representing the tasks.
     """
     from datetime import datetime
+    from html import escape
     from itertools import groupby
 
     css = """
@@ -338,14 +339,16 @@ def generate_html_report(tasks: list[Task]) -> str:
     else:
         sorted_tasks = sorted(tasks, key=lambda t: t.category)
         for category, category_tasks in groupby(sorted_tasks, key=lambda t: t.category):
-            html.append(f"    <h2>{category.title()}</h2>")
+            html.append(f"    <h2>{escape(category.title())}</h2>")
             html.append("    <ul class='task-list'>")
             for task in category_tasks:
                 status_class = "done" if task.is_done else "pending"
                 checkbox = "✓" if task.is_done else "○"
                 html.append(f"        <li class='task-item {status_class}'>")
                 html.append(f"            <span class='checkbox'>{checkbox}</span>")
-                html.append(f"            <span class='content'>{task.content}</span>")
+                html.append(
+                    f"            <span class='content'>{escape(task.content)}</span>"
+                )
                 html.append(
                     f"            <span class='priority'>Priority: {task.priority}</span>"
                 )
