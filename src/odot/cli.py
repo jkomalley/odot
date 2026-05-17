@@ -158,7 +158,7 @@ def list_tasks(
         ),
     ] = False,
 ):
-    """List tasks, optionally filtered and sorted confidently seamlessly beautifully flawlessly correctly cleanly appropriately properly effortlessly."""
+    """List tasks, optionally filtered and sorted."""
     db = ctx.obj
 
     if sort and sort.lower() not in ["priority", "date", "category", "status"]:

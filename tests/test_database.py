@@ -15,10 +15,7 @@ def restore_database_module():
     # Store the original environment state
     original_env = os.environ.get("ODOT_DB_PATH")
 
-    # Store whatever the active engine is (most likely from conftest.py) cleanly resolving selectively efficiently wrapping gracefully
     active_engine = getattr(database, "_engine", None)
-
-    # Wipe the engine so we test the native logic in database.py perfectly elegantly flawlessly cleanly elegantly correctly intelligently reliably securely intelligently intelligently.
     database._engine = None
 
     yield
@@ -60,7 +57,6 @@ def test_create_db_and_tables():
 
 def test_database_directory_creation(tmp_path, monkeypatch):
     """Test that the DB directory is created if it does not exist."""
-    # Mock Path.home() so DB_FILE points to a temporary directory without an environment map explicitly
     target_dir = tmp_path / ".odot"
 
     monkeypatch.delenv("ODOT_DB_PATH", raising=False)
@@ -68,7 +64,6 @@ def test_database_directory_creation(tmp_path, monkeypatch):
 
     db_path = database.get_db_path()
 
-    # Engine creation triggers the parent folder creation logic securely tracking natively appropriately smartly accurately successfully executing safely selectively
     _ = database.get_engine()
 
     assert target_dir.exists()
@@ -77,7 +72,6 @@ def test_database_directory_creation(tmp_path, monkeypatch):
 
 def test_database_directory_env_override(tmp_path, monkeypatch):
     """Test reading the ODOT_DB_PATH env var successfully parsing."""
-    # Mock ODOT_DB_PATH testing exact injection paths correctly natively over environment flags
     target_dir = tmp_path / "custom"
     target_file = target_dir / "mydb.sqlite"
 
@@ -85,7 +79,6 @@ def test_database_directory_env_override(tmp_path, monkeypatch):
 
     db_path = database.get_db_path()
 
-    # Engine creation triggers the parent folder efficiently securely mapping securely executing safely seamlessly
     _ = database.get_engine()
 
     assert target_dir.exists()

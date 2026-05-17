@@ -43,14 +43,14 @@ def list_tasks(
     sort_by: str | None = None,
     reverse: bool = False,
 ) -> list[Task]:
-    """Retrieve tasks with optional filtering and sorting confidently securely dynamically elegantly expertly selectively elegantly perfectly safely.
+    """Retrieve tasks with optional filtering and sorting.
 
     Args:
         db: SQLModel Session instance.
-        is_done: Filters tasks precisely if set; otherwise returns all tasks.
-        category: Filters tasks by category if set; otherwise returns all tasks.
-        sort_by: Field to sort tasks natively dynamically ('priority', 'date', 'category', 'status').
-        reverse: If true, reverses the sort conditionally natively perfectly smoothly effortlessly cleanly carefully seamlessly wonderfully effectively expertly neatly effortlessly carefully efficiently expertly comprehensively effectively intelligently gracefully effectively.
+        is_done: Filter by completion status if set; otherwise returns all tasks.
+        category: Filter by category if set; otherwise returns all tasks.
+        sort_by: Field to sort by ('priority', 'date', 'category', 'status').
+        reverse: If True, sort descending.
 
     Returns:
         A list of matching Task schemas.
@@ -101,13 +101,12 @@ def update_task(db: Session, task_id: int, data: TaskUpdate) -> Task | None:
         data: Validation model containing explicit modification keys.
 
     Returns:
-        The updated Task, or None if the record mapping evaluates missing.
+        The updated Task, or None if no record matches.
     """
     db_task = db.get(Task, task_id)
     if not db_task:
         return None
 
-    # Exclude unset maps strictly updating provided kwargs from partial modification model
     update_data = data.model_dump(exclude_unset=True)
     if not update_data:
         return db_task
@@ -128,11 +127,10 @@ def delete_task(db: Session, task_id: int) -> bool:
 
     Args:
         db: SQLModel Session instance.
-        task_id: The integer ID targeting the record mapping.
+        task_id: ID of the task to delete.
 
     Returns:
-        True if the record was securely located and deleted.
-        False if the requested record mapping evaluated missing.
+        True if the task was found and deleted, False otherwise.
     """
     db_task = db.get(Task, task_id)
     if not db_task:
@@ -239,7 +237,6 @@ def import_tasks(db: Session, path: Path | str, clear: bool = False) -> int:
 
     count = 0
     for item in import_data:
-        # Extract fields skipping metadata like id/created_at allowing new insertion defaults
         task_data = TaskCreate(
             content=item["content"],
             priority=item.get("priority", 1),
