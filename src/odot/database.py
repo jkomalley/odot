@@ -9,10 +9,10 @@ _engine: Engine | None = None
 
 
 def get_db_path() -> Path:
-    """Resolve the physical location explicitly storing the local SQLite instance.
+    """Return the path to the SQLite database file.
 
     Returns:
-        A Path object pointing directly to the required db file perfectly.
+        Path to the database file.
     """
     db_env = os.environ.get("ODOT_DB_PATH")
     if db_env:
@@ -21,10 +21,10 @@ def get_db_path() -> Path:
 
 
 def get_engine() -> Engine:
-    """Return a lazy-loaded singleton SQLModel database engine properly uniquely perfectly correctly reliably.
+    """Return the singleton database engine, creating it on first call.
 
     Returns:
-        Database engine correctly validating gracefully exclusively explicitly seamlessly intelligently checking.
+        The SQLAlchemy engine instance.
     """
     global _engine
     if _engine is None:

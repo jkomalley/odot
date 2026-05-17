@@ -75,7 +75,6 @@ def test_list_tasks(session):
     pending_work_tasks = core.list_tasks(db=session, is_done=False, category="work")
     assert len(pending_work_tasks) == 2
 
-    # Test sorting conditionally explicitly seamlessly dynamically correctly effectively seamlessly smoothly effectively efficiently safely properly wonderfully
     _ = core.update_task(
         db=session, task_id=t1.id, data=TaskUpdate(is_done=True)
     )  # ID 1: Priority 1, Done
@@ -83,7 +82,6 @@ def test_list_tasks(session):
         db=session, task_id=t3.id, data=TaskUpdate(priority=3)
     )  # ID 3: Priority 3, Pending
 
-    # Priority Sort Ascending/Descending seamlessly expertly uniquely effectively safely
     sort_priority_asc = core.list_tasks(db=session, sort_by="priority")
     assert sort_priority_asc[0].priority == 1
     assert sort_priority_asc[1].priority == 1
@@ -128,20 +126,16 @@ def test_update_task(session):
     updated = core.update_task(db=session, task_id=task.id, data=TaskUpdate(priority=3))
     assert updated is not None
     assert updated.id == task.id
-    assert (
-        updated.content == "Old Task"
-    )  # Stays evaluating explicitly old contents cleanly
+    assert updated.content == "Old Task"
     assert updated.priority == 3
     assert updated.updated_at is not None
     assert updated.updated_at > updated.created_at
 
-    # Check targeting a missing ID evaluation tracking safely
     missing = core.update_task(
         db=session, task_id=999, data=TaskUpdate(content="Missing")
     )
     assert missing is None
 
-    # Test no-op updates tracking safely
     updated_noop = core.update_task(db=session, task_id=task.id, data=TaskUpdate())
     assert updated_noop is not None
     assert updated_noop.content == "Old Task"
@@ -154,12 +148,9 @@ def test_delete_task(session):
     target_id = task.id
 
     assert target_id is not None
-    # Native evaluation resolving correctly
     success = core.delete_task(db=session, task_id=target_id)
     assert success is True
 
-    # Validation against execution preventing stale read
-    # Double deletion evaluation triggering exception loop bounds mappings strictly correctly to False
     redundant = core.delete_task(db=session, task_id=target_id)
     assert redundant is False
 
@@ -262,7 +253,6 @@ def test_export_tasks(session, tmp_path):
         data = json.load(f)
         assert len(data) == 3
 
-    # Export filtered explicitly by category natively mapped mapping correctly tracked string conversions resolving safely
     count = core.export_tasks(
         db=session, path=export_file, category="work", pretty=True
     )
@@ -273,7 +263,6 @@ def test_export_tasks(session, tmp_path):
         assert "Dummy task 1" in str(data)
         assert "Dummy task 3" in str(data)
 
-    # Test Optional null mapping printing seamlessly returning bounds mapping exclusively natively efficiently correctly evaluating explicitly conditionally evaluating
     import io
     import sys
 
@@ -289,7 +278,7 @@ def test_export_tasks(session, tmp_path):
 
 
 def test_import_tasks(session, tmp_path):
-    """Test importing JSON mappings natively tracking properties correctly."""
+    """Test importing tasks from a JSON file."""
     import json
 
     import_file = tmp_path / "import.json"
@@ -302,10 +291,8 @@ def test_import_tasks(session, tmp_path):
     with open(import_file, "w") as f:
         json.dump(payload, f)
 
-    # Ensure current DB maintains properties natively tracking pre-seed data
     core.add_task(db=session, task_data=TaskCreate(content="Pre payload task"))
 
-    # Import extending default DB
     count = core.import_tasks(db=session, path=str(import_file))
     assert count == 2
 
@@ -314,7 +301,6 @@ def test_import_tasks(session, tmp_path):
     assert any(t.content == "Import 1" and t.priority == 3 for t in tasks)
     assert any(t.content == "Import 2" and t.is_done is True for t in tasks)
 
-    # Import using `clear` resolving full purge tracking reset explicitly
     count = core.import_tasks(db=session, path=str(import_file), clear=True)
     assert count == 2
     tasks_after_clear = core.list_tasks(db=session)

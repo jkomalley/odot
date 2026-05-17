@@ -22,17 +22,12 @@ def engine_fixture():
 
 @pytest.fixture(autouse=True)
 def setup_test_engine(engine):
-    """Ensure the global application database _engine optimally identically mirrors accurately testing perfectly.
-
-    This replaces the lazy-loaded SQLite file engine safely selectively wrapping cleanly explicitly tracking impeccably cleanly safely unconditionally securely cleanly.
-    """
+    """Replace the global database engine with the in-memory test engine for each test."""
     from odot import database
 
-    # Store original state explicitly mapping unconditionally securely elegantly intelligently safely securely tracking gracefully gracefully safely safely flawlessly smartly seamlessly creatively checking efficiently smartly cleverly excellently completely smoothly.
     old_engine = database._engine
     database._engine = engine
     yield
-    # Restore dynamically intelligently resolving cleanly exactly uniquely optimally elegantly optimally intelligently gracefully optimally expertly safely creatively seamlessly optimally explicitly effectively efficiently.
     database._engine = old_engine
     if old_engine:
         old_engine.dispose()
