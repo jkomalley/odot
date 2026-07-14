@@ -2,6 +2,7 @@
 
 import pytest
 from typer.testing import CliRunner
+
 from odot.cli import app
 
 runner = CliRunner()
@@ -27,6 +28,18 @@ def test_init_db():
     result = runner.invoke(app, ["init-db"])
     assert result.exit_code == 0
     assert "Database initialized successfully" in result.stdout
+
+
+def test_main_callback_skips_init_when_session_present():
+    """When ctx.obj already holds a session, the callback leaves it untouched."""
+    from odot.cli import main_callback
+
+    class FakeContext:
+        obj = "existing-session"
+
+    ctx = FakeContext()
+    main_callback(ctx)  # ty: ignore[invalid-argument-type]
+    assert ctx.obj == "existing-session"
 
 
 def test_help():
@@ -62,8 +75,9 @@ def test_add_command():
 
 def test_prompt_task_selection(monkeypatch, session):
     """Test the TUI selection prompt internally tracking missing tasks natively."""
-    from odot.cli import prompt_task_selection
     import typer
+
+    from odot.cli import prompt_task_selection
 
     # Needs to raise evaluating empty branches
     with pytest.raises(typer.Exit):
@@ -148,7 +162,7 @@ def test_list_command():
     assert "Task B" in combined_result.stdout
     assert "Task A" not in combined_result.stdout
 
-    # Test sorting successfully elegantly gracefully smoothly natively expertly cleanly correctly perfectly carefully smoothly intelligently efficiently skillfully cleanly securely perfectly cleanly cleanly
+    # Re-prioritize tasks, then verify ascending vs. descending sort order.
     runner.invoke(app, ["update", "1", "-p", "3"])
     runner.invoke(app, ["update", "3", "-p", "2"])
 
@@ -249,16 +263,54 @@ def test_update_command(monkeypatch):
     assert "3" in verify2.stdout
     assert "Done" in verify2.stdout
 
-    # Test interactive prompt for task ID mapping missing IDs implicitly skipping forms when explicit fields exist natively
+    # With explicit fields given, no task-selection prompt should appear.
     monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 1)
     interactive = runner.invoke(app, ["update", "--priority", "1"])
     assert interactive.exit_code == 0
     assert "Successfully updated task 1" in interactive.stdout
 
-    # Test missing task natively handled efficiently passing correctly skipping checks dynamically
+    # Updating a nonexistent task should report not-found.
     missing = runner.invoke(app, ["update", "999", "--done"])
     assert missing.exit_code == 1
     assert "Task 999 not found" in missing.stdout
+
+
+def test_update_interactive_partial(monkeypatch):
+    """Interactive update touching only a subset of fields skips the others."""
+    runner.invoke(app, ["add", "Partial task"])
+
+    # Select only 'content' so the priority/category/done branches are skipped.
+    class MockContentOnlyCheckbox:
+        def ask(self):
+            return ["content"]
+
+    monkeypatch.setattr(
+        "questionary.checkbox", lambda *a, **k: MockContentOnlyCheckbox()
+    )
+    monkeypatch.setattr("rich.prompt.Prompt.ask", lambda *a: "Only content changed")
+
+    content_only = runner.invoke(app, ["update", "1"])
+    assert content_only.exit_code == 0
+    assert "Successfully updated task 1" in content_only.stdout
+
+    # Select 'priority' but cancel the priority prompt (select returns None),
+    # leaving the field unset.
+    class MockPriorityOnlyCheckbox:
+        def ask(self):
+            return ["priority"]
+
+    class MockSelectCancelled:
+        def ask(self):
+            return None
+
+    monkeypatch.setattr(
+        "questionary.checkbox", lambda *a, **k: MockPriorityOnlyCheckbox()
+    )
+    monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectCancelled())
+
+    cancelled = runner.invoke(app, ["update", "1"])
+    assert cancelled.exit_code == 0
+    assert "Successfully updated task 1" in cancelled.stdout
 
 
 def test_done_command(monkeypatch):
@@ -324,7 +376,7 @@ def test_rm_command(monkeypatch):
     assert aborted.exit_code == 1
     assert "Are you sure you want to delete task 2?" in aborted.stdout
 
-    # Test confirmed deletion mapping user interactive bounds securely evaluating task_id prompt natively
+    # Confirmed deletion via the interactive task-id prompt.
     monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 2)
     confirmed = runner.invoke(app, ["rm"], input="y\n")
     assert confirmed.exit_code == 0
@@ -409,13 +461,13 @@ def test_export_command(tmp_path):
 
     import json
 
-    with open(export_file, "r") as f:
+    with export_file.open() as f:
         data = json.load(f)
         assert len(data) == 1
         assert data[0]["content"] == "Export task 1"
 
-    # Test executing JSON dynamically mapping bounds returning empty execution tracking natively tracking safely explicitly wrapping null exceptions tracking exclusively.
-    # Exporting natively optionally gracefully correctly executing natively tracking unconditionally exclusively printing bounds safely efficiently wrapping seamlessly mapping output cleanly natively
+    # Exporting with a filter that matches nothing yields empty output.
+    # (stdout path, no file written)
     result_none = runner.invoke(app, ["export", "--category", "work"])
     assert result_none.exit_code == 0
     assert "Export task 1" in result_none.stdout
@@ -441,7 +493,7 @@ def test_import_command(tmp_path):
             "is_done": False,
         }
     ]
-    with open(import_file, "w") as f:
+    with import_file.open("w") as f:
         json.dump(payload, f)
 
     runner.invoke(app, ["add", "Pre existing task"])
@@ -466,12 +518,12 @@ def test_import_command(tmp_path):
     assert "CLI Import Task" in lists.stdout
     assert "Pre existing task" not in lists.stdout
 
-    # Missing file exception handling testing mapped bounds explicitly gracefully skipping execution safely natively tracking validation elegantly
+    # Importing a missing file should fail gracefully.
     # Typer natively exits with 2 for missing file objects explicitly
     missing = runner.invoke(app, ["import", "missing.json"])
     assert missing.exit_code == 2
 
-    # Malformed JSON securely tracking payload elegantly checking efficiently appropriately cleanly unconditionally tracking natively seamlessly efficiently successfully beautifully
+    # Malformed JSON should be reported as an import failure.
     bad_json_file = tmp_path / "bad.json"
     bad_json_file.write_text("invalid completely")
     bad_run = runner.invoke(app, ["import", str(bad_json_file)])

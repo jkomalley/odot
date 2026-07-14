@@ -1,7 +1,12 @@
 """Core library logic (CRUD operations)."""
 
-from sqlmodel import Session, col, select
+import json
+from datetime import UTC, datetime
+from html import escape
+from itertools import groupby
 from pathlib import Path
+
+from sqlmodel import Session, col, delete, select
 
 from odot.models import Task, TaskCreate, TaskUpdate
 
@@ -112,9 +117,7 @@ def update_task(db: Session, task_id: int, data: TaskUpdate) -> Task | None:
         return db_task
 
     db_task.sqlmodel_update(update_data)
-    from datetime import datetime, timezone
-
-    db_task.updated_at = datetime.now(timezone.utc)
+    db_task.updated_at = datetime.now(UTC)
 
     db.add(db_task)
     db.commit()
@@ -150,8 +153,6 @@ def delete_completed_tasks(db: Session) -> int:
     Returns:
         The total number of deleted Task records.
     """
-    from sqlmodel import delete
-
     statement = delete(Task).where(col(Task.is_done))
     result = db.exec(statement)
     db.commit()
@@ -167,8 +168,6 @@ def delete_all_tasks(db: Session) -> int:
     Returns:
         The total number of deleted Task records.
     """
-    from sqlmodel import delete
-
     statement = delete(Task)
     result = db.exec(statement)
     db.commit()
@@ -194,8 +193,6 @@ def export_tasks(
     Returns:
         The total number of exported records.
     """
-    import json
-
     tasks = list_tasks(db=db, is_done=is_done, category=category)
     export_data = [task.model_dump(mode="json") for task in tasks]
 
@@ -226,8 +223,6 @@ def import_tasks(db: Session, path: Path | str, clear: bool = False) -> int:
     Returns:
         The total number of imported records.
     """
-    import json
-
     if clear:
         delete_all_tasks(db=db)
 
@@ -262,11 +257,10 @@ def generate_markdown_report(tasks: list[Task]) -> str:
     Returns:
         A Markdown formatted string representing the tasks.
     """
-    from datetime import datetime
-
     lines = [
         "# Odot Task Report",
-        f"*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
+        # Report timestamps are naive local time by design for display.
+        f"*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",  # noqa: DTZ005
         "",
     ]
 
@@ -276,8 +270,6 @@ def generate_markdown_report(tasks: list[Task]) -> str:
 
     # Group by category (requires sorting by category first)
     sorted_tasks = sorted(tasks, key=lambda t: t.category)
-    from itertools import groupby
-
     for category, category_tasks in groupby(sorted_tasks, key=lambda t: t.category):
         lines.append(f"## {category.title()}")
         for task in category_tasks:
@@ -297,23 +289,32 @@ def generate_html_report(tasks: list[Task]) -> str:
     Returns:
         An HTML formatted string representing the tasks.
     """
-    from datetime import datetime
-    from html import escape
-    from itertools import groupby
-
     css = """
-    body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; color: #333; }
+    body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 800px; margin: 0 auto; padding: 20px;
+        line-height: 1.6; color: #333;
+    }
     h1 { border-bottom: 2px solid #eaeaea; padding-bottom: 10px; }
     h2 { color: #555; margin-top: 30px; }
     .task-list { list-style-type: none; padding-left: 0; }
-    .task-item { padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; }
+    .task-item {
+        padding: 8px 0; border-bottom: 1px solid #f0f0f0;
+        display: flex; align-items: center;
+    }
     .task-item:last-child { border-bottom: none; }
-    .checkbox { margin-right: 12px; font-weight: bold; width: 24px; text-align: center; }
+    .checkbox {
+        margin-right: 12px; font-weight: bold;
+        width: 24px; text-align: center;
+    }
     .done .checkbox { color: #2ea043; }
     .pending .checkbox { color: #d9d9d9; }
     .content { flex-grow: 1; }
     .done .content { text-decoration: line-through; color: #888; }
-    .priority { font-size: 0.85em; background: #f0f4f8; padding: 2px 6px; border-radius: 4px; color: #586069; }
+    .priority {
+        font-size: 0.85em; background: #f0f4f8;
+        padding: 2px 6px; border-radius: 4px; color: #586069;
+    }
     .meta { font-size: 0.9em; color: #666; font-style: italic; }
     """
 
@@ -328,7 +329,8 @@ def generate_html_report(tasks: list[Task]) -> str:
         "</head>",
         "<body>",
         "    <h1>Odot Task Report</h1>",
-        f"    <p class='meta'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>",
+        # Report timestamps are naive local time by design for display.
+        f"    <p class='meta'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>",  # noqa: DTZ005, E501
     ]
 
     if not tasks:
@@ -347,7 +349,7 @@ def generate_html_report(tasks: list[Task]) -> str:
                     f"            <span class='content'>{escape(task.content)}</span>"
                 )
                 html.append(
-                    f"            <span class='priority'>Priority: {task.priority}</span>"
+                    f"            <span class='priority'>Priority: {task.priority}</span>"  # noqa: E501
                 )
                 html.append("        </li>")
             html.append("    </ul>")

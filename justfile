@@ -21,7 +21,7 @@ test:
 
 # Run tests with coverage and enforce 100% execution
 test-cov:
-    uv run pytest --cov=src/odot --cov-report=term-missing --cov-fail-under=100
+    uv run pytest --cov --cov-fail-under=100
 
 # Check code formatting (for CI)
 format-check:

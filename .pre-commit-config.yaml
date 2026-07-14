@@ -1,35 +1,33 @@
-# .pre-commit-config.yaml
-# To use:
-#   pre-commit install
-#
-# To run against all files:
-#   pre-commit run --all-files
-#
 repos:
-  # Standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
 
-  # Ruff linter and formatter
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.5
+    rev: v0.15.10
     hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
+      - id: ruff
+        args: [--fix]
 
-  # Ty type checker
   - repo: local
     hooks:
       - id: ty
-        name: ty
-        entry: uv run ty check
+        name: ty type check
+        entry: uv run ty check src/
         language: system
-        types: [python]
-        require_serial: true
         pass_filenames: false
+        stages: [pre-push]
+
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

@@ -13,13 +13,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.1.0
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -30,5 +30,15 @@ jobs:
       - name: Install Dependencies
         run: just install
 
-      - name: Run Checks
-        run: just check
+      - name: Format check
+        run: just format-check
+
+      - name: Lint
+        run: just lint-check
+
+      - name: Type check
+        if: matrix.python-version == '3.13'
+        run: just typecheck
+
+      - name: Test with coverage
+        run: just test-cov

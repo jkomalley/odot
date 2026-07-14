@@ -2,8 +2,9 @@
 
 import os
 from pathlib import Path
-from sqlmodel import SQLModel, create_engine
+
 from sqlalchemy.engine import Engine
+from sqlmodel import SQLModel, create_engine
 
 _engine: Engine | None = None
 
@@ -26,7 +27,7 @@ def get_engine() -> Engine:
     Returns:
         The SQLAlchemy engine instance.
     """
-    global _engine
+    global _engine  # noqa: PLW0603  # module-level singleton engine, swapped in tests
     if _engine is None:
         db_file = get_db_path()
         if not db_file.parent.exists():
@@ -44,7 +45,8 @@ def create_db_and_tables() -> None:
     This function discovers the SQLModel subclasses and emits CREATE TABLE
     queries against the engine.
     """
-    # Import models here to prevent circular imports during module initialization
-    from odot.models import Task  # noqa: F401
+    # Import models here to prevent circular imports during module initialization.
+    # Importing Task registers it on SQLModel.metadata so create_all emits its table.
+    from odot.models import Task  # noqa: F401, PLC0415
 
     SQLModel.metadata.create_all(get_engine())
