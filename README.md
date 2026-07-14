@@ -110,6 +110,11 @@ just test-cov      # enforce 100% coverage
 just check         # ruff + ty + tests
 ```
 
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development
+setup, project layout, and the conventions this repo follows.
+
 ## License
 
-[MIT](LICENSE)
+Released under the [MIT License](LICENSE).
