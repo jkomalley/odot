@@ -104,9 +104,6 @@ convention = "google"
 "src/odot/cli.py" = [
     "T201",   # print() is a valid output mechanism for the CLI
 ]
-"src/odot/core.py" = [
-    "T201",   # print() streams JSON export to stdout
-]
 "tests/test_cli_subprocess.py" = [
     "S603",   # subprocess call with controlled input is safe here
 ]
