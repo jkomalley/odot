@@ -2,6 +2,7 @@
 
 import importlib.metadata
 import json
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any
@@ -18,6 +19,19 @@ from odot._format import relative_time, render_task_table
 from odot.models import Task, TaskCreate, TaskUpdate
 
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+@dataclass
+class AppContext:
+    """Per-invocation state stored on `ctx.obj`.
+
+    Holds the shared database session plus whether the global (or per-command)
+    `--json` flag was set, so every command can consult one place to decide
+    between Rich output and machine-readable JSON.
+    """
+
+    session: Session
+    json_output: bool = False
 
 
 class SortField(StrEnum):
@@ -44,6 +58,78 @@ app = typer.Typer(
     invoke_without_command=True,
 )
 console = Console()
+#: Errors are written here so stdout stays a clean JSON channel under --json.
+err_console = Console(stderr=True)
+
+#: Reusable per-command `--json` option. The global flag on the app callback
+#: (`odot --json <cmd>`) is the primary form, but the issue's examples also
+#: show `odot list --json`, so each command accepts the flag in its own
+#: position too; the two are OR-ed together via `json_enabled`.
+JsonOption = Annotated[
+    bool,
+    typer.Option("--json", help="Output machine-readable JSON instead of a table."),
+]
+
+
+def emit_json(data: object) -> None:
+    """Print a JSON document to stdout as the sole output of a `--json` command.
+
+    Plain `print(json.dumps(...))` is used rather than `console.print_json` so
+    the output is never soft-wrapped or styled: the result is a single valid
+    JSON document safe to pipe into `jq` or `python -m json.tool`.
+
+    Args:
+        data: Any JSON-serializable value (a list of task dicts, a single task
+            dict, or a small summary dict).
+    """
+    print(json.dumps(data))
+
+
+def json_enabled(ctx: typer.Context, local: bool) -> bool:
+    """Return whether JSON output is active for the current command.
+
+    True if either the global callback flag (`odot --json ...`) or the
+    command's own `--json` flag (`odot ... --json`) was given.
+    """
+    return bool(getattr(ctx.obj, "json_output", False)) or local
+
+
+def json_error(message: str, *, code: int = 1) -> typer.Exit:
+    """Print an error to stderr and return an `Exit` to raise.
+
+    Keeps stdout a clean JSON channel: under --json all diagnostics go to
+    stderr. Returned (not raised) so callers keep an explicit `raise`.
+    """
+    err_console.print(f"[red]{message}[/red]")
+    return typer.Exit(code=code)
+
+
+def require_task_id(
+    ctx: typer.Context, task_id: int | None, action: str, *, as_json: bool
+) -> int:
+    """Resolve a task id, prompting interactively unless JSON mode is active.
+
+    Under --json there is no TTY to prompt on, so a missing id is a usage
+    error (exit 2) written to stderr instead of an interactive selection.
+    """
+    if task_id is not None:
+        return task_id
+    if as_json:
+        raise json_error("A task id is required in --json mode.", code=2)
+    return prompt_task_selection(ctx.obj.session, action)
+
+
+def require_force(force: bool, prompt: str, *, as_json: bool) -> None:
+    """Confirm a destructive action, requiring --force in JSON mode.
+
+    Interactive confirmations cannot run under --json (no TTY), so --force is
+    mandatory there; without it, a usage error (exit 2) is emitted to stderr.
+    """
+    if force:
+        return
+    if as_json:
+        raise json_error("--force is required in --json mode.", code=2)
+    typer.confirm(prompt, abort=True)
 
 
 def prompt_task_selection(db: Session, action: str) -> int:
@@ -133,15 +219,29 @@ def main_callback(
             help="Show the application's version and exit.",
         ),
     ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help=(
+                "Output machine-readable JSON. Applies to list/show/add/update/"
+                "done/undo/search/count/rm/clean/purge/import; ignored by "
+                "export/report/init-db, which produce their own artifacts."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """A minimalist CLI task manager."""
     if getattr(ctx, "obj", None) is None:
         db_path = database.get_db_path()
+        # Auto-init's "Database initialized" notice would corrupt the JSON on
+        # stdout, so route it to stderr when JSON output is requested.
         if not db_path.exists():
             database.create_db_and_tables()
-            console.print(f"[dim]Database initialized at {db_path}[/dim]")
+            notice = f"[dim]Database initialized at {db_path}[/dim]"
+            (err_console if json_output else console).print(notice)
         session = Session(database.get_engine())
-        ctx.obj = session
+        ctx.obj = AppContext(session=session, json_output=json_output)
         ctx.call_on_close(session.close)
 
     # Bare `odot` (#61): show the task list, the most common intent, rather
@@ -160,14 +260,21 @@ def add(
     category: Annotated[
         str, typer.Option("-c", "--category", help="Category label")
     ] = "general",
+    json_output: JsonOption = False,
 ) -> None:
     """Add a new task."""
+    as_json = json_enabled(ctx, json_output)
     if content is None:
+        if as_json:
+            raise json_error("Task content is required in --json mode.", code=2)
         content = Prompt.ask("Task content")
 
-    db = ctx.obj
+    db = ctx.obj.session
     task_data = TaskCreate(content=content, priority=priority, category=category)
     task = core.add_task(db=db, task_data=task_data)
+    if as_json:
+        emit_json(task.model_dump(mode="json"))
+        return
     console.print(f'[green]✅ Added task {task.id}: "{task.content}"[/green]')
     console.print(
         f"[dim]   Priority: {task.priority} │ Category: {task.category} "
@@ -179,15 +286,22 @@ def add(
 def show(
     ctx: typer.Context,
     task_id: Annotated[int | None, typer.Argument(help="Task ID to show")] = None,
+    json_output: JsonOption = False,
 ) -> None:
     """Show details for a specific task."""
-    db = ctx.obj
-    if task_id is None:
-        task_id = prompt_task_selection(db, "show")
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
+    task_id = require_task_id(ctx, task_id, "show", as_json=as_json)
     task = core.get_task(db=db, task_id=task_id)
     if not task:
+        if as_json:
+            raise json_error(f"Task {task_id} not found.")
         console.print(f"[red]Task {task_id} not found.[/red]")
         raise typer.Exit(code=1)
+
+    if as_json:
+        emit_json(task.model_dump(mode="json"))
+        return
 
     table = Table(title=f"Task {task.id}")
     table.add_column("Property", style="cyan")
@@ -242,9 +356,11 @@ def list_tasks(
             help="Reverse the sort order (descending)",
         ),
     ] = False,
+    json_output: JsonOption = False,
 ) -> None:
     """List tasks, optionally filtered and sorted."""
-    db = ctx.obj
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
 
     tasks = core.list_tasks(
         db=db,
@@ -253,6 +369,10 @@ def list_tasks(
         sort_by=sort,
         reverse=reverse,
     )
+
+    if as_json:
+        emit_json([task.model_dump(mode="json") for task in tasks])
+        return
 
     if not tasks:
         print_empty_state(db, category=category, done=done)
@@ -272,10 +392,25 @@ def count(
     category: Annotated[
         str | None, typer.Option("-c", "--category", help="Filter by category")
     ] = None,
+    json_output: JsonOption = False,
 ) -> None:
     """Print task counts without rendering a full table (#58)."""
-    db = ctx.obj
+    db = ctx.obj.session
     tasks = core.list_tasks(db=db, is_done=done, category=category)
+
+    if json_enabled(ctx, json_output):
+        # Report the full total/pending/done breakdown regardless of the
+        # active filter so the JSON shape is stable for scripts; the filter is
+        # already reflected in which tasks were counted.
+        done_count = sum(1 for t in tasks if t.is_done)
+        emit_json(
+            {
+                "total": len(tasks),
+                "pending": len(tasks) - done_count,
+                "done": done_count,
+            }
+        )
+        return
 
     # done/todo filters collapse the line to a single count since the other
     # status is, by definition, excluded; combined with --category it reads
@@ -300,10 +435,15 @@ def count(
 def search(
     ctx: typer.Context,
     phrase: Annotated[str, typer.Argument(help="Phrase to search for in task content")],
+    json_output: JsonOption = False,
 ) -> None:
     """Search for tasks containing a specific phrase."""
-    db = ctx.obj
+    db = ctx.obj.session
     tasks = core.search_tasks(db=db, phrase=phrase)
+
+    if json_enabled(ctx, json_output):
+        emit_json([task.model_dump(mode="json") for task in tasks])
+        return
 
     if not tasks:
         console.print(f"No tasks matching '{phrase}' found.")
@@ -397,11 +537,12 @@ def update(
         bool | None,
         typer.Option("-d/-t", "--done/--todo", help="Update completion status"),
     ] = None,
+    json_output: JsonOption = False,
 ) -> None:
     """Update properties of an existing task."""
-    db = ctx.obj
-    if task_id is None:
-        task_id = prompt_task_selection(db, "update")
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
+    task_id = require_task_id(ctx, task_id, "update", as_json=as_json)
 
     # Collect only the arguments the user explicitly provided on the command line.
     provided_args = {
@@ -414,8 +555,13 @@ def update(
         k: v for k, v in provided_args.items() if v is not None
     }
 
-    # If no flags are provided, ask interactively via a checkbox form
+    # If no flags are provided, ask interactively via a checkbox form — but
+    # never under --json, where at least one update flag is required (exit 2).
     if not update_kwargs:
+        if as_json:
+            raise json_error(
+                "At least one field flag is required in --json mode.", code=2
+            )
         prompted = _prompt_update_fields()
         if prompted is None:
             console.print("[yellow]No updates provided.[/yellow]")
@@ -428,6 +574,8 @@ def update(
     # would be a no-op since SQLAlchemy's identity map mutates it in place.
     existing = core.get_task(db=db, task_id=task_id)
     if not existing:
+        if as_json:
+            raise json_error(f"Task {task_id} not found.")
         console.print(f"[red]Task {task_id} not found.[/red]")
         raise typer.Exit(code=1)
     before = _snapshot(existing)
@@ -437,6 +585,10 @@ def update(
     if not task:  # pragma: no cover - existing was just confirmed present above
         console.print(f"[red]Task {task_id} not found.[/red]")
         raise typer.Exit(code=1)
+
+    if as_json:
+        emit_json(task.model_dump(mode="json"))
+        return
 
     console.print(f"[green]✏️  Updated task #{task.id}[/green]")
     _print_update_diff(before, task)
@@ -448,15 +600,21 @@ def done(
     task_id: Annotated[
         int | None, typer.Argument(help="Task ID to mark as done")
     ] = None,
+    json_output: JsonOption = False,
 ) -> None:
     """Mark a task as done."""
-    db = ctx.obj
-    if task_id is None:
-        task_id = prompt_task_selection(db, "mark done")
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
+    task_id = require_task_id(ctx, task_id, "mark done", as_json=as_json)
     task = core.update_task(db=db, task_id=task_id, data=TaskUpdate(is_done=True))
     if not task:
+        if as_json:
+            raise json_error(f"Task {task_id} not found.")
         console.print(f"[red]Task {task_id} not found.[/red]")
         raise typer.Exit(code=1)
+    if as_json:
+        emit_json(task.model_dump(mode="json"))
+        return
     console.print(f'[green]✅ Marked done: "{task.content}" (task #{task.id})[/green]')
 
 
@@ -464,15 +622,21 @@ def done(
 def undo(
     ctx: typer.Context,
     task_id: Annotated[int | None, typer.Argument(help="Task ID to re-open")] = None,
+    json_output: JsonOption = False,
 ) -> None:
     """Re-open a completed task."""
-    db = ctx.obj
-    if task_id is None:
-        task_id = prompt_task_selection(db, "re-open")
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
+    task_id = require_task_id(ctx, task_id, "re-open", as_json=as_json)
     task = core.update_task(db=db, task_id=task_id, data=TaskUpdate(is_done=False))
     if not task:
+        if as_json:
+            raise json_error(f"Task {task_id} not found.")
         console.print(f"[red]Task {task_id} not found.[/red]")
         raise typer.Exit(code=1)
+    if as_json:
+        emit_json(task.model_dump(mode="json"))
+        return
     console.print(f'[green]↩️  Re-opened: "{task.content}" (task #{task.id})[/green]')
 
 
@@ -483,28 +647,34 @@ def rm(
     force: Annotated[
         bool, typer.Option("-f", "--force", help="Force deletion without confirmation")
     ] = False,
+    json_output: JsonOption = False,
 ) -> None:
     """Remove a task."""
-    db = ctx.obj
-    if task_id is None:
-        task_id = prompt_task_selection(db, "remove")
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
+    task_id = require_task_id(ctx, task_id, "remove", as_json=as_json)
 
     # Fetched once up front and reused for both the confirmation prompt and
     # the deletion message, so content is echoed in the destructive
     # confirmation (#57) without a redundant second lookup.
     task = core.get_task(db=db, task_id=task_id)
 
-    if not force:
-        prompt_label = (
-            f'Delete "{task.content}" (task #{task_id})?'
-            if task
-            else f"Delete task #{task_id}?"
-        )
-        typer.confirm(prompt_label, abort=True)
+    prompt_label = (
+        f'Delete "{task.content}" (task #{task_id})?'
+        if task
+        else f"Delete task #{task_id}?"
+    )
+    require_force(force, prompt_label, as_json=as_json)
 
     if not task or not core.delete_task(db=db, task_id=task_id):
+        if as_json:
+            raise json_error(f"Task {task_id} not found.")
         console.print(f"[red]Task {task_id} not found.[/red]")
         raise typer.Exit(code=1)
+
+    if as_json:
+        emit_json({"deleted": 1})
+        return
 
     console.print(
         f'[green]\U0001f5d1️  Deleted task #{task_id}: "{task.content}"[/green]'
@@ -517,16 +687,22 @@ def clean(
     force: Annotated[
         bool, typer.Option("-f", "--force", help="Force deletion without confirmation")
     ] = False,
+    json_output: JsonOption = False,
 ) -> None:
     """Delete all completed tasks from the database."""
-    db = ctx.obj
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
 
-    if not force:
-        typer.confirm(
-            "Are you sure you want to delete all completed tasks?", abort=True
-        )
+    require_force(
+        force,
+        "Are you sure you want to delete all completed tasks?",
+        as_json=as_json,
+    )
 
     count_deleted = core.delete_completed_tasks(db=db)
+    if as_json:
+        emit_json({"deleted": count_deleted})
+        return
     if count_deleted == 0:
         console.print("[yellow]⚠️  No completed tasks to delete.[/yellow]")
     else:
@@ -541,19 +717,26 @@ def purge(
     force: Annotated[
         bool, typer.Option("-f", "--force", help="Force deletion without confirmation")
     ] = False,
+    json_output: JsonOption = False,
 ) -> None:
     """Delete all tasks, completely resetting the database."""
-    db = ctx.obj
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
 
-    if not force:
+    if not force and not as_json:
         console.print(
             "[bold red]WARNING: This will permanently delete ALL tasks.[/bold red]"
         )
-        typer.confirm(
-            "Are you incredibly sure you want to purge all records?", abort=True
-        )
+    require_force(
+        force,
+        "Are you incredibly sure you want to purge all records?",
+        as_json=as_json,
+    )
 
     count_deleted = core.delete_all_tasks(db=db)
+    if as_json:
+        emit_json({"deleted": count_deleted})
+        return
     console.print(
         f"[green]\U0001f9f9 Purged {count_deleted} tasks from the database.[/green]"
     )
@@ -575,8 +758,12 @@ def export_cmd(
         bool, typer.Option("-p", "--pretty", help="Pretty print JSON output")
     ] = False,
 ) -> None:
-    """Export tasks to a JSON file."""
-    db = ctx.obj
+    """Export tasks to a JSON file.
+
+    A global `--json` flag is accepted but ignored here: `export` already
+    produces JSON as its whole purpose, so it has no separate JSON mode.
+    """
+    db = ctx.obj.session
 
     count_exported = core.export_tasks(
         db=db, path=path, is_done=done, category=category, pretty=pretty
@@ -595,25 +782,38 @@ def import_cmd(
     clear: Annotated[
         bool, typer.Option("--clear", help="Purge existing database before importing")
     ] = False,
+    json_output: JsonOption = False,
 ) -> None:
     """Import tasks from a JSON file."""
-    db = ctx.obj
+    as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
 
     if clear:
-        console.print(
-            "[bold red]WARNING: This will permanently delete ALL existing "
-            "tasks before importing.[/bold red]"
-        )
+        if not as_json:
+            console.print(
+                "[bold red]WARNING: This will permanently delete ALL existing "
+                "tasks before importing.[/bold red]"
+            )
+        # --clear's confirmation can't run under --json; require an explicit
+        # confirmation channel there, mirroring purge/clean (exit 2).
+        if as_json:
+            raise json_error("--clear cannot be confirmed in --json mode.", code=2)
         typer.confirm(
             "Are you incredibly sure you want to clear the database?", abort=True
         )
 
     try:
         count_imported = core.import_tasks(db=db, path=path, clear=clear)
-        console.print(f"[green]✅ Imported {count_imported} tasks from {path}[/green]")
     except (OSError, json.JSONDecodeError, KeyError, ValueError) as e:
+        if as_json:
+            raise json_error(f"Failed to import tasks: {e}") from e
         console.print(f"[bold red]Failed to import tasks: {e}[/bold red]")
         raise typer.Exit(code=1) from e
+
+    if as_json:
+        emit_json({"imported": count_imported})
+        return
+    console.print(f"[green]✅ Imported {count_imported} tasks from {path}[/green]")
 
 
 @app.command(name="report")
@@ -639,8 +839,12 @@ def report_cmd(
         typer.Option("-r", "--reverse", help="Reverse the sort order (descending)"),
     ] = False,
 ) -> None:
-    """Generate a Markdown or HTML report of tasks."""
-    db = ctx.obj
+    """Generate a Markdown or HTML report of tasks.
+
+    A global `--json` flag is accepted but ignored: `report` writes its own
+    Markdown/HTML artifact and has no JSON mode.
+    """
+    db = ctx.obj.session
 
     tasks = core.list_tasks(
         db=db, is_done=done, category=category, sort_by=sort, reverse=reverse

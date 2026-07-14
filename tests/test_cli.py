@@ -1071,3 +1071,337 @@ def test_explicit_subcommand_does_not_trigger_bare_list():
     result = runner.invoke(app, ["show", "1"])
     assert result.exit_code == 0
     assert "Odot Tasks" not in result.stdout
+
+
+# --------------------------------------------------------------------------- #
+# --json output (#62)
+# --------------------------------------------------------------------------- #
+def _json_out(result):
+    """Parse a command's stdout as JSON, asserting stdout is the sole channel."""
+    return json.loads(result.stdout)
+
+
+def test_json_add_returns_task_object():
+    """`add --json` emits a single task object with the export schema fields."""
+    result = runner.invoke(app, ["add", "JSON task", "-p", "2", "-c", "work", "--json"])
+    assert result.exit_code == 0
+    data = _json_out(result)
+    assert data["id"] == 1
+    assert data["content"] == "JSON task"
+    assert data["priority"] == 2
+    assert data["category"] == "work"
+    assert data["is_done"] is False
+    # Schema mirrors export exactly.
+    assert set(data) == {
+        "id",
+        "content",
+        "priority",
+        "category",
+        "is_done",
+        "created_at",
+        "updated_at",
+    }
+
+
+def test_json_add_missing_content_exits_two():
+    """`add --json` with no content errors on stderr and exits 2 (never prompts)."""
+    result = runner.invoke(app, ["add", "--json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "content is required" in result.stderr
+
+
+def test_json_global_flag_before_subcommand():
+    """The global callback flag (`odot --json add ...`) also enables JSON."""
+    result = runner.invoke(app, ["--json", "add", "Global flag task"])
+    assert result.exit_code == 0
+    assert _json_out(result)["content"] == "Global flag task"
+
+
+def test_json_list_empty_is_empty_array():
+    """`list --json` with no tasks emits an empty array, not prose."""
+    result = runner.invoke(app, ["list", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result) == []
+
+
+def test_json_list_returns_array():
+    """`list --json` returns a JSON array of every task."""
+    runner.invoke(app, ["add", "Task A"])
+    runner.invoke(app, ["add", "Task B"])
+
+    result = runner.invoke(app, ["list", "--json"])
+    assert result.exit_code == 0
+    data = _json_out(result)
+    assert [t["content"] for t in data] == ["Task A", "Task B"]
+
+
+def test_json_bare_invocation_emits_list_json():
+    """Bare `odot --json` falls through to the list command's JSON array."""
+    runner.invoke(app, ["add", "Bare task"])
+
+    result = runner.invoke(app, ["--json"])
+    assert result.exit_code == 0
+    assert [t["content"] for t in _json_out(result)] == ["Bare task"]
+
+
+def test_json_show_returns_object():
+    """`show --json` returns the single matching task object."""
+    runner.invoke(app, ["add", "Show me"])
+
+    result = runner.invoke(app, ["show", "1", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result)["content"] == "Show me"
+
+
+def test_json_show_missing_task_errors_on_stderr():
+    """`show --json` on a missing id errors to stderr with exit 1, clean stdout."""
+    result = runner.invoke(app, ["show", "999", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Task 999 not found" in result.stderr
+
+
+def test_json_show_missing_id_exits_two():
+    """`show --json` without an id errors (no interactive prompt) and exits 2."""
+    result = runner.invoke(app, ["show", "--json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "task id is required" in result.stderr
+
+
+def test_json_count_returns_breakdown():
+    """`count --json` returns a total/pending/done breakdown object."""
+    runner.invoke(app, ["add", "Task A"])
+    runner.invoke(app, ["add", "Task B"])
+    runner.invoke(app, ["done", "1"])
+
+    result = runner.invoke(app, ["count", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result) == {"total": 2, "pending": 1, "done": 1}
+
+
+def test_json_search_returns_array():
+    """`search --json` returns a JSON array of matching tasks."""
+    runner.invoke(app, ["add", "Findable phrase"])
+    runner.invoke(app, ["add", "Unrelated"])
+
+    result = runner.invoke(app, ["search", "Findable", "--json"])
+    assert result.exit_code == 0
+    data = _json_out(result)
+    assert [t["content"] for t in data] == ["Findable phrase"]
+
+
+def test_json_search_no_matches_is_empty_array():
+    """`search --json` with no matches emits an empty array."""
+    runner.invoke(app, ["add", "Task A"])
+
+    result = runner.invoke(app, ["search", "nomatch", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result) == []
+
+
+def test_json_update_returns_task():
+    """`update --json` returns the updated task object."""
+    runner.invoke(app, ["add", "Old"])
+
+    result = runner.invoke(app, ["update", "1", "--content", "New", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result)["content"] == "New"
+
+
+def test_json_update_no_fields_exits_two():
+    """`update --json` with no field flags errors (no prompt) and exits 2."""
+    runner.invoke(app, ["add", "Old"])
+
+    result = runner.invoke(app, ["update", "1", "--json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "field flag is required" in result.stderr
+
+
+def test_json_update_missing_task_errors():
+    """`update --json` on a missing task errors to stderr with exit 1."""
+    result = runner.invoke(app, ["update", "999", "--done", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Task 999 not found" in result.stderr
+
+
+def test_json_done_returns_task():
+    """`done --json` returns the completed task object."""
+    runner.invoke(app, ["add", "Finish me"])
+
+    result = runner.invoke(app, ["done", "1", "--json"])
+    assert result.exit_code == 0
+    data = _json_out(result)
+    assert data["is_done"] is True
+
+
+def test_json_done_missing_task_errors():
+    """`done --json` on a missing task errors to stderr with exit 1."""
+    result = runner.invoke(app, ["done", "999", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Task 999 not found" in result.stderr
+
+
+def test_json_undo_returns_task():
+    """`undo --json` returns the re-opened task object."""
+    runner.invoke(app, ["add", "Done then undone"])
+    runner.invoke(app, ["done", "1"])
+
+    result = runner.invoke(app, ["undo", "1", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result)["is_done"] is False
+
+
+def test_json_undo_missing_task_errors():
+    """`undo --json` on a missing task errors to stderr with exit 1."""
+    result = runner.invoke(app, ["undo", "999", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Task 999 not found" in result.stderr
+
+
+def test_json_rm_force_returns_deleted_count():
+    """`rm --force --json` returns a deleted-count object."""
+    runner.invoke(app, ["add", "Delete me"])
+
+    result = runner.invoke(app, ["rm", "1", "--force", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result) == {"deleted": 1}
+
+
+def test_json_rm_without_force_exits_two():
+    """`rm --json` without --force errors (no confirm prompt) and exits 2."""
+    runner.invoke(app, ["add", "Delete me"])
+
+    result = runner.invoke(app, ["rm", "1", "--json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "--force is required" in result.stderr
+
+
+def test_json_rm_missing_id_exits_two():
+    """`rm --json` without an id errors (no prompt) and exits 2."""
+    result = runner.invoke(app, ["rm", "--json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "task id is required" in result.stderr
+
+
+def test_json_rm_missing_task_errors():
+    """`rm --force --json` on a missing task errors to stderr with exit 1."""
+    result = runner.invoke(app, ["rm", "999", "--force", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Task 999 not found" in result.stderr
+
+
+def test_json_clean_returns_deleted_count():
+    """`clean --force --json` returns a deleted-count object."""
+    runner.invoke(app, ["add", "Keep"])
+    runner.invoke(app, ["add", "Remove"])
+    runner.invoke(app, ["done", "2"])
+
+    result = runner.invoke(app, ["clean", "--force", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result) == {"deleted": 1}
+
+
+def test_json_clean_without_force_exits_two():
+    """`clean --json` without --force errors and exits 2."""
+    result = runner.invoke(app, ["clean", "--json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "--force is required" in result.stderr
+
+
+def test_json_purge_returns_deleted_count():
+    """`purge --force --json` returns a deleted-count object, no warning prose."""
+    runner.invoke(app, ["add", "Task A"])
+    runner.invoke(app, ["add", "Task B"])
+
+    result = runner.invoke(app, ["purge", "--force", "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result) == {"deleted": 2}
+
+
+def test_json_purge_without_force_exits_two():
+    """`purge --json` without --force errors and exits 2 with no warning on stdout."""
+    runner.invoke(app, ["add", "Task A"])
+
+    result = runner.invoke(app, ["purge", "--json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "--force is required" in result.stderr
+
+
+def test_json_import_returns_imported_count(tmp_path):
+    """`import --json` returns an imported-count object."""
+    import_file = tmp_path / "import.json"
+    payload = [{"content": "Imported task", "priority": 1, "is_done": False}]
+    with import_file.open("w") as f:
+        json.dump(payload, f)
+
+    result = runner.invoke(app, ["import", str(import_file), "--json"])
+    assert result.exit_code == 0
+    assert _json_out(result) == {"imported": 1}
+
+
+def test_json_import_clear_exits_two(tmp_path):
+    """`import --clear --json` cannot confirm the wipe and exits 2."""
+    import_file = tmp_path / "import.json"
+    payload = [{"content": "Imported task", "priority": 1, "is_done": False}]
+    with import_file.open("w") as f:
+        json.dump(payload, f)
+
+    result = runner.invoke(app, ["import", str(import_file), "--clear", "--json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "--clear cannot be confirmed" in result.stderr
+
+
+def test_json_import_malformed_errors_on_stderr(tmp_path):
+    """`import --json` on malformed JSON errors to stderr with exit 1."""
+    bad = tmp_path / "bad.json"
+    bad.write_text("not json")
+
+    result = runner.invoke(app, ["import", str(bad), "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Failed to import tasks" in result.stderr
+
+
+def test_json_export_flag_is_ignored(tmp_path):
+    """`export --json` is accepted but produces export's normal file artifact."""
+    runner.invoke(app, ["add", "Export me"])
+    out = tmp_path / "export.json"
+
+    result = runner.invoke(app, ["--json", "export", str(out)])
+    assert result.exit_code == 0
+    with out.open() as f:
+        assert json.load(f)[0]["content"] == "Export me"
+
+
+def test_json_report_flag_is_ignored(tmp_path):
+    """`report --json` is accepted but still writes its Markdown artifact."""
+    runner.invoke(app, ["add", "Report me"])
+    out = tmp_path / "report.md"
+
+    result = runner.invoke(app, ["--json", "report", str(out)])
+    assert result.exit_code == 0
+    assert "Report me" in out.read_text()
+
+
+def test_json_auto_init_notice_goes_to_stderr(tmp_path, monkeypatch):
+    """Under --json, the auto-init notice goes to stderr so stdout stays JSON."""
+    non_existent = tmp_path / "auto_init.sqlite"
+    monkeypatch.setattr("odot.database.get_db_path", lambda: non_existent)
+
+    result = runner.invoke(app, ["--json", "list"])
+    assert result.exit_code == 0
+    assert _json_out(result) == []
+    assert "Database initialized" in result.stderr
+    assert "Database initialized" not in result.stdout
