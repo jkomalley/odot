@@ -21,6 +21,20 @@ _PRIORITY_DISPLAY = {
     3: "[bold red]●●● High[/bold red]",
 }
 
+#: Plain-text (no rich/ANSI markup) counterpart of `_PRIORITY_DISPLAY`, used by
+#: questionary choice labels — questionary titles are rendered verbatim and do
+#: not interpret rich markup, so the bracketed color tags would leak literally.
+_PRIORITY_DISPLAY_PLAIN = {
+    1: "● Low",
+    2: "●● Med",
+    3: "●●● High",
+}
+
+#: Max content width in an interactive-selection label before truncation; the
+#: dropped tail is replaced with a single-character ellipsis (counts toward the
+#: budget) so every content cell occupies the same column width.
+_CHOICE_CONTENT_WIDTH = 30
+
 
 def priority_display(priority: int) -> str:
     """Render a task priority as a colored dot indicator with a text label.
@@ -34,6 +48,69 @@ def priority_display(priority: int) -> str:
         outside the known 1-3 range.
     """
     return _PRIORITY_DISPLAY.get(priority, str(priority))
+
+
+def priority_display_plain(priority: int) -> str:
+    """Render a task priority as a dot indicator with a label, without markup.
+
+    The plain-text sibling of `priority_display`, for contexts (like
+    questionary choice titles) that print the string verbatim rather than
+    through Rich, where the `[color]...[/color]` tags would appear literally.
+
+    Args:
+        priority: Priority value (expected 1-3; any other int falls back to
+            its bare string form).
+
+    Returns:
+        A plain string such as "●● Med", or the bare number if out of range.
+    """
+    return _PRIORITY_DISPLAY_PLAIN.get(priority, str(priority))
+
+
+def _truncate(text: str, width: int) -> str:
+    """Truncate `text` to `width` characters, ending with "…" if shortened."""
+    if len(text) <= width:
+        return text
+    # Reserve one column for the ellipsis so the result never exceeds `width`.
+    return text[: width - 1] + "…"
+
+
+def build_task_choice_labels(tasks: list[Task]) -> list[tuple[str, int]]:
+    """Build aligned, plain-text selection labels for interactive prompts.
+
+    Produces one `(label, task_id)` pair per task with the id, status glyph,
+    truncated content, category, and priority laid out in fixed-width columns
+    so the menu lines up regardless of how the terminal renders it. The labels
+    contain no Rich/ANSI markup because questionary prints choice titles
+    verbatim (see `priority_display_plain`).
+
+    Column widths for the id and category are computed from the widest value
+    present so short lists stay compact while long ones still align. Every task
+    is assumed to have an `id` (persisted tasks always do).
+
+    Args:
+        tasks: The tasks to offer, in display order.
+
+    Returns:
+        A list of `(label, task_id)` tuples; the labels are safe to use as
+        both `questionary.Choice` titles and autocomplete keys.
+    """
+    id_width = max(len(str(t.id)) for t in tasks)
+    category_width = max(len(t.category) for t in tasks)
+
+    labels: list[tuple[str, int]] = []
+    for t in tasks:
+        assert t.id is not None  # persisted tasks always carry an id
+        glyph = "✔" if t.is_done else "○"
+        content = _truncate(t.content, _CHOICE_CONTENT_WIDTH).ljust(
+            _CHOICE_CONTENT_WIDTH
+        )
+        label = (
+            f"# {str(t.id).rjust(id_width)} │ {glyph} │ {content} │ "
+            f"{t.category.ljust(category_width)} │ {priority_display_plain(t.priority)}"
+        )
+        labels.append((label, t.id))
+    return labels
 
 
 def highlight_match(content: str, phrase: str) -> Text:

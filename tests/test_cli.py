@@ -103,6 +103,35 @@ def test_prompt_task_selection_returns_chosen_id(monkeypatch, session):
     assert prompt_task_selection(session, "select") == 1
 
 
+def test_prompt_task_selection_select_labels_include_metadata(monkeypatch, session):
+    """Below the threshold, select choices carry category + priority metadata."""
+    from odot.cli import prompt_task_selection
+
+    runner.invoke(app, ["add", "Buy groceries", "-c", "home", "-p", "3"])
+
+    captured: dict = {}
+
+    class MockSelect:
+        def ask(self):
+            return 1
+
+    def fake_select(*args, **kwargs):
+        captured["kwargs"] = kwargs
+        return MockSelect()
+
+    monkeypatch.setattr("questionary.select", fake_select)
+
+    assert prompt_task_selection(session, "update") == 1
+
+    title = captured["kwargs"]["choices"][0].title
+    assert "home" in title  # category column
+    assert "High" in title  # plain-text priority label
+    assert "●" in title  # priority dot glyph
+    # The instruction hint is surfaced so type-to-filter is discoverable.
+    assert captured["kwargs"]["instruction"] == "(arrow keys; type to filter)"
+    assert captured["kwargs"]["use_search_filter"] is True
+
+
 def test_prompt_task_selection_raises_on_cancel(monkeypatch, session):
     """Cancelling the TUI selection (ask returns None) exits."""
     import typer
@@ -116,6 +145,80 @@ def test_prompt_task_selection_raises_on_cancel(monkeypatch, session):
             return None
 
     monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectCancelled())
+
+    with pytest.raises(typer.Exit):
+        prompt_task_selection(session, "select")
+
+
+def _seed_tasks(count: int) -> None:
+    """Seed `count` tasks so the autocomplete threshold branch is exercised."""
+    for i in range(count):
+        runner.invoke(app, ["add", f"Task number {i}"])
+
+
+def test_prompt_task_selection_autocomplete_at_threshold(monkeypatch, session):
+    """At exactly AUTOCOMPLETE_THRESHOLD tasks, the autocomplete branch is used."""
+    from odot.cli import AUTOCOMPLETE_THRESHOLD, prompt_task_selection
+
+    _seed_tasks(AUTOCOMPLETE_THRESHOLD)
+
+    captured: dict = {}
+
+    class MockAutocomplete:
+        def ask(self):
+            # Echo back the label for task id 1 so the mapping resolves it.
+            return captured["kwargs"]["choices"][0]
+
+    def fake_autocomplete(*args, **kwargs):
+        captured["kwargs"] = kwargs
+        return MockAutocomplete()
+
+    # If select were (wrongly) chosen, this would raise and fail the test.
+    def boom(*args, **kwargs):
+        raise AssertionError("select should not be used at the threshold")
+
+    monkeypatch.setattr("questionary.autocomplete", fake_autocomplete)
+    monkeypatch.setattr("questionary.select", boom)
+
+    result = prompt_task_selection(session, "select")
+    assert result == 1
+    assert captured["kwargs"]["match_middle"] is True
+
+
+def test_prompt_task_selection_autocomplete_invalid_answer(monkeypatch, session):
+    """A free-text autocomplete answer that maps to no task exits with code 1."""
+    import typer
+
+    from odot.cli import AUTOCOMPLETE_THRESHOLD, prompt_task_selection
+
+    _seed_tasks(AUTOCOMPLETE_THRESHOLD)
+
+    class MockAutocomplete:
+        def ask(self):
+            return "not a real task label"
+
+    monkeypatch.setattr("questionary.autocomplete", lambda *a, **k: MockAutocomplete())
+
+    with pytest.raises(typer.Exit) as exc_info:
+        prompt_task_selection(session, "select")
+    assert exc_info.value.exit_code == 1
+
+
+def test_prompt_task_selection_autocomplete_cancel(monkeypatch, session):
+    """Cancelling the autocomplete prompt (ask returns None) exits."""
+    import typer
+
+    from odot.cli import AUTOCOMPLETE_THRESHOLD, prompt_task_selection
+
+    _seed_tasks(AUTOCOMPLETE_THRESHOLD)
+
+    class MockAutocompleteCancelled:
+        def ask(self):
+            return None
+
+    monkeypatch.setattr(
+        "questionary.autocomplete", lambda *a, **k: MockAutocompleteCancelled()
+    )
 
     with pytest.raises(typer.Exit):
         prompt_task_selection(session, "select")
