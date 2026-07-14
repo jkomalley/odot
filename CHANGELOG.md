@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-14
+
+### Added
+
+- `odot count` command with the same `--done/--todo` and `--category` filters as `list` (#58)
+- Global `--json` flag: machine-readable output for list/search/show/add/update/done/undo/count, status objects for rm/clean/purge/import; prompts are disabled under `--json` (#62)
+- Color-coded priority indicators (`● Low` / `●● Med` / `●●● High`) in task tables (#54)
+- Summary counts footer under `odot list` (#55)
+- Relative timestamps ("2h ago") alongside absolute times in `odot show` (#56)
+- Search results highlight the matched phrase (#60)
+- Running bare `odot` now shows the task list instead of help (#61)
+- Interactive task selection shows status, category, and priority, supports type-to-filter, and switches to an autocomplete prompt for 20+ tasks (#63)
+- `python -m odot` entry point
+- PEP 561 `py.typed` marker — the package now ships type information
+- Project docs: CONTRIBUTING.md, CLAUDE.md, and this changelog
+- Automated releases: merging an unpublished version to main now publishes to PyPI, tags, and drafts a GitHub release; a version-guard CI check enforces semver-correct bumps
+
+### Changed
+
+- Friendlier, more informative success and confirmation messages across all commands; `update` now shows a before/after diff (#57)
+- Invalid `--sort` values are rejected at parse time with a usage error (exit 2)
+- Search matching is now explicitly case-insensitive rather than relying on SQLite's ASCII-only default
+- Core API: `list_tasks` raises `ValueError` on invalid sort fields (#47), `export_tasks` accepts an output stream (#48), new public `set_engine()`/`reset_engine()` (#52)
+- Tooling: ruff `select=["ALL"]` with curated ignores, ty type checking, 100% branch-coverage gate
+
+### Removed
+
+- Python 3.10 support — odot now requires Python 3.11+
+
 ## [0.3.0] - 2026-05-17
 
 ### Added
@@ -69,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved a duplicate auth header that caused the bump-version workflow to
   fail.
 
-[Unreleased]: https://github.com/jkomalley/odot/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jkomalley/odot/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/jkomalley/odot/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jkomalley/odot/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jkomalley/odot/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jkomalley/odot/compare/v0.1.1...v0.2.0
