@@ -4,6 +4,8 @@ import pytest
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
+from odot import database
+
 # Use in-memory SQLite for testing to ensure speed and isolation
 sqlite_url = "sqlite:///:memory:"
 
@@ -23,14 +25,9 @@ def engine_fixture():
 @pytest.fixture(autouse=True)
 def setup_test_engine(engine):
     """Swap the global engine for the in-memory test engine around each test."""
-    from odot import database
-
-    old_engine = database._engine
-    database._engine = engine
+    database.set_engine(engine)
     yield
-    database._engine = old_engine
-    if old_engine:
-        old_engine.dispose()
+    database.reset_engine()
 
 
 @pytest.fixture(name="session")

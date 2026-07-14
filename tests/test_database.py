@@ -4,37 +4,26 @@ import os
 from pathlib import Path
 
 import pytest
+from sqlmodel import create_engine
 
 from odot import database
 
 
 @pytest.fixture(autouse=True)
-def restore_database_module():
-    """Ensure database.py is cleanly reloaded and independent for each test."""
-    import importlib
-
-    # Store the original environment state
+def isolate_engine():
+    """Ensure each test starts with no engine configured and restores env vars."""
     original_env = os.environ.get("ODOT_DB_PATH")
 
-    active_engine = getattr(database, "_engine", None)
-    database._engine = None
+    database.reset_engine()
 
     yield
 
-    # Restore the environment completely
     if original_env is not None:
         os.environ["ODOT_DB_PATH"] = original_env
     else:
         os.environ.pop("ODOT_DB_PATH", None)
 
-    engine = getattr(database, "_engine", None)
-    if engine is not None and engine != active_engine:
-        engine.dispose()
-
-    database._engine = active_engine
-
-    # Reload the module to restore to original test state universally
-    importlib.reload(database)
+    database.reset_engine()
 
 
 def test_database_url_and_engine():
@@ -42,18 +31,18 @@ def test_database_url_and_engine():
     db_file = database.get_db_path()
     assert db_file is not None
     assert isinstance(db_file, Path)
-    assert not database._engine  # Should be none originally
 
     engine = database.get_engine()
     assert engine is not None
     assert str(engine.url).startswith("sqlite:///")
-    assert database._engine is not None
+    engine.dispose()
 
 
 def test_create_db_and_tables():
     """Test table creation against the real engine."""
     # We can invoke the real engine execution without failing
     database.create_db_and_tables()
+    database.get_engine().dispose()
 
 
 def test_database_directory_creation(tmp_path, monkeypatch):
@@ -65,10 +54,11 @@ def test_database_directory_creation(tmp_path, monkeypatch):
 
     db_path = database.get_db_path()
 
-    _ = database.get_engine()
+    engine = database.get_engine()
 
     assert target_dir.exists()
     assert db_path.parent == target_dir
+    engine.dispose()
 
 
 def test_database_directory_env_override(tmp_path, monkeypatch):
@@ -80,7 +70,33 @@ def test_database_directory_env_override(tmp_path, monkeypatch):
 
     db_path = database.get_db_path()
 
-    _ = database.get_engine()
+    engine = database.get_engine()
 
     assert target_dir.exists()
     assert db_path == target_file
+    engine.dispose()
+
+
+def test_set_engine_overrides_singleton():
+    """Test that set_engine installs a specific engine as the singleton."""
+    custom_engine = create_engine("sqlite:///:memory:")
+
+    database.set_engine(custom_engine)
+
+    assert database.get_engine() is custom_engine
+
+    custom_engine.dispose()
+
+
+def test_reset_engine_clears_singleton():
+    """Test that reset_engine forces get_engine to create a fresh engine."""
+    first_engine = database.get_engine()
+
+    database.reset_engine()
+
+    second_engine = database.get_engine()
+
+    assert first_engine is not second_engine
+
+    first_engine.dispose()
+    second_engine.dispose()

@@ -1,14 +1,19 @@
 """Core library logic (CRUD operations)."""
 
 import json
+import sys
 from datetime import UTC, datetime
 from html import escape
 from itertools import groupby
 from pathlib import Path
+from typing import TextIO
 
 from sqlmodel import Session, col, delete, select
 
 from odot.models import Task, TaskCreate, TaskUpdate
+
+#: Fields accepted by `list_tasks`'s `sort_by` parameter (case-insensitive).
+VALID_SORT_FIELDS = ("priority", "date", "category", "status")
 
 
 def add_task(db: Session, task_data: TaskCreate) -> Task:
@@ -54,11 +59,15 @@ def list_tasks(
         db: SQLModel Session instance.
         is_done: Filter by completion status if set; otherwise returns all tasks.
         category: Filter by category if set; otherwise returns all tasks.
-        sort_by: Field to sort by ('priority', 'date', 'category', 'status').
+        sort_by: Field to sort by, one of `VALID_SORT_FIELDS`
+            ('priority', 'date', 'category', 'status'). Case-insensitive.
         reverse: If True, sort descending.
 
     Returns:
         A list of matching Task schemas.
+
+    Raises:
+        ValueError: If `sort_by` is set but is not one of `VALID_SORT_FIELDS`.
     """
     statement = select(Task)
 
@@ -68,6 +77,13 @@ def list_tasks(
         statement = statement.where(col(Task.category) == category)
 
     if sort_by:
+        normalized = sort_by.lower()
+        if normalized not in VALID_SORT_FIELDS:
+            msg = (
+                f"Invalid sort field: {sort_by!r}. Must be one of {VALID_SORT_FIELDS}."
+            )
+            raise ValueError(msg)
+
         field_map = {
             "priority": Task.priority,
             "date": Task.created_at,
@@ -75,16 +91,20 @@ def list_tasks(
             "status": Task.is_done,
         }
 
-        target_field = field_map.get(sort_by.lower())
-        if target_field:
-            ordering = col(target_field).desc() if reverse else col(target_field).asc()
-            statement = statement.order_by(ordering)
+        target_field = field_map[normalized]
+        ordering = col(target_field).desc() if reverse else col(target_field).asc()
+        statement = statement.order_by(ordering)
 
     return list(db.exec(statement).all())
 
 
 def search_tasks(db: Session, phrase: str) -> list[Task]:
     """Search tasks by content phrase.
+
+    Matching is explicitly case-insensitive: both the column and the search
+    phrase are lowered via SQL `lower()` before comparison, rather than
+    relying on SQLite's default `LIKE` case-folding (which is ASCII-only and
+    an implementation detail we don't want to depend on implicitly).
 
     Args:
         db: SQLModel Session instance.
@@ -93,7 +113,7 @@ def search_tasks(db: Session, phrase: str) -> list[Task]:
     Returns:
         A list of matching Task schemas.
     """
-    statement = select(Task).where(col(Task.content).contains(phrase))
+    statement = select(Task).where(col(Task.content).icontains(phrase))
     return list(db.exec(statement).all())
 
 
@@ -180,34 +200,37 @@ def export_tasks(
     is_done: bool | None = None,
     category: str | None = None,
     pretty: bool = False,
+    output: TextIO | None = None,
 ) -> int:
-    """Export tasks to a JSON file.
+    """Export tasks to a JSON file, or to a stream when no path is given.
 
     Args:
         db: SQLModel Session instance.
-        path: File path to save the JSON output.
+        path: File path to save the JSON output. If None, JSON is written to
+            `output` instead.
         is_done: Optional filter by completion status.
         category: Optional filter by category.
         pretty: Whether to format the JSON string with indentation.
+        output: Stream to write JSON to when `path` is None. Defaults to
+            `sys.stdout`. Ignored if `path` is provided.
 
     Returns:
         The total number of exported records.
     """
     tasks = list_tasks(db=db, is_done=is_done, category=category)
     export_data = [task.model_dump(mode="json") for task in tasks]
+    indent = 2 if pretty else None
 
     if path is None:
-        if pretty:
-            print(json.dumps(export_data, indent=2))
-        else:
-            print(json.dumps(export_data))
+        stream = output or sys.stdout
+        json.dump(export_data, stream, indent=indent)
+        # Match the old print() behavior so shell prompts land on a new line.
+        stream.write("\n")
     else:
+        # File output deliberately has no trailing newline (unchanged behavior).
         file_path = Path(path)
         with file_path.open("w", encoding="utf-8") as f:
-            if pretty:
-                json.dump(export_data, f, indent=2)
-            else:
-                json.dump(export_data, f)
+            json.dump(export_data, f, indent=indent)
 
     return len(tasks)
 

@@ -1,5 +1,10 @@
 """Unit tests for core logic CRUD operations."""
 
+import io
+import json
+
+import pytest
+
 from odot import core
 from odot.models import Task, TaskCreate, TaskUpdate
 
@@ -114,9 +119,14 @@ def test_list_tasks(session):
     assert sort_category[0].category == "personal"
     assert sort_category[-1].category == "work"
 
-    # An unrecognized sort field is ignored and returns tasks unsorted.
-    unknown_sort = core.list_tasks(db=session, sort_by="nonexistent")
-    assert len(unknown_sort) == len(sort_category)
+
+def test_list_tasks_invalid_sort_raises(session):
+    """Test that an invalid sort_by value raises ValueError (see #47, #50)."""
+    core.add_task(db=session, task_data=TaskCreate(content="A", priority=2))
+    core.add_task(db=session, task_data=TaskCreate(content="B", priority=1))
+
+    with pytest.raises(ValueError, match="Invalid sort field"):
+        core.list_tasks(db=session, sort_by="nonexistent")
 
 
 def test_update_task(session):
@@ -184,6 +194,24 @@ def test_search_tasks(session):
     assert len(results) == 0
 
 
+def test_search_tasks_mixed_case(session):
+    """Test that mixed-case phrases match regardless of stored casing."""
+    core.add_task(db=session, task_data=TaskCreate(content="Review PR Feedback"))
+
+    # Mixed-case phrase against mixed-case content
+    results = core.search_tasks(db=session, phrase="pR fEEdback")
+    assert len(results) == 1
+    assert results[0].content == "Review PR Feedback"
+
+    # All-lowercase phrase
+    results = core.search_tasks(db=session, phrase="review")
+    assert len(results) == 1
+
+    # All-uppercase phrase
+    results = core.search_tasks(db=session, phrase="REVIEW")
+    assert len(results) == 1
+
+
 def test_delete_completed_tasks(session):
     """Test dropping only records marked as done."""
     t1 = core.add_task(db=session, task_data=TaskCreate(content="Dummy task 1"))
@@ -246,8 +274,6 @@ def test_export_tasks(session, tmp_path):
     assert t2.id is not None
     core.update_task(db=session, task_id=t2.id, data=TaskUpdate(is_done=True))
 
-    import json
-
     export_file = tmp_path / "export.json"
 
     # Export all
@@ -267,24 +293,34 @@ def test_export_tasks(session, tmp_path):
         assert "Dummy task 1" in str(data)
         assert "Dummy task 3" in str(data)
 
-    import io
-    import sys
+    # Injectable output stream (no path): defaults to sys.stdout when omitted.
+    captured_output = io.StringIO()
+    count = core.export_tasks(db=session, pretty=False, output=captured_output)
+    assert count == 3
+    written = captured_output.getvalue()
+    # Stream output ends with a newline, matching the old print() behavior.
+    assert written.endswith("\n")
+    data = json.loads(written)
+    assert len(data) == 3
+
+
+def test_export_tasks_defaults_to_stdout(session, monkeypatch):
+    """Test that export_tasks writes to sys.stdout when output is not given."""
+    core.add_task(db=session, task_data=TaskCreate(content="Dummy task"))
 
     captured_output = io.StringIO()
-    sys.stdout = captured_output
-    try:
-        count = core.export_tasks(db=session, pretty=False)
-        assert count == 3
-        data = json.loads(captured_output.getvalue())
-        assert len(data) == 3
-    finally:
-        sys.stdout = sys.__stdout__
+    monkeypatch.setattr("sys.stdout", captured_output)
+
+    count = core.export_tasks(db=session)
+    assert count == 1
+    written = captured_output.getvalue()
+    assert written.endswith("\n")
+    data = json.loads(written)
+    assert len(data) == 1
 
 
 def test_import_tasks(session, tmp_path):
     """Test importing tasks from a JSON file."""
-    import json
-
     import_file = tmp_path / "import.json"
 
     # Write some dummy payload explicitly
@@ -309,6 +345,53 @@ def test_import_tasks(session, tmp_path):
     assert count == 2
     tasks_after_clear = core.list_tasks(db=session)
     assert len(tasks_after_clear) == 2
+
+
+def test_import_tasks_missing_content(session, tmp_path):
+    """Test that importing JSON with a missing content key raises KeyError."""
+    bad_file = tmp_path / "bad_import.json"
+    payload = [{"priority": 2, "category": "work"}]  # missing content
+    bad_file.write_text(json.dumps(payload))
+
+    with pytest.raises(KeyError):
+        core.import_tasks(db=session, path=str(bad_file))
+
+    # Nothing should have been committed before the failure.
+    assert core.list_tasks(db=session) == []
+
+
+def test_import_tasks_empty_array(session, tmp_path):
+    """Test that importing an empty JSON array adds no tasks."""
+    empty_file = tmp_path / "empty.json"
+    empty_file.write_text("[]")
+
+    count = core.import_tasks(db=session, path=str(empty_file))
+    assert count == 0
+    assert core.list_tasks(db=session) == []
+
+
+def test_import_tasks_ignores_unknown_fields(session, tmp_path):
+    """Test that extra/unexpected JSON fields are silently ignored."""
+    extra_file = tmp_path / "extra_fields.json"
+    payload = [
+        {
+            "content": "Task with extras",
+            "priority": 2,
+            "category": "work",
+            "unexpected_field": "should be ignored",
+            "another_bogus_key": 123,
+        }
+    ]
+    extra_file.write_text(json.dumps(payload))
+
+    count = core.import_tasks(db=session, path=str(extra_file))
+    assert count == 1
+
+    tasks = core.list_tasks(db=session)
+    assert len(tasks) == 1
+    assert tasks[0].content == "Task with extras"
+    assert tasks[0].priority == 2
+    assert not hasattr(tasks[0], "unexpected_field")
 
 
 def test_generate_markdown_report():

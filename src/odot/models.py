@@ -10,11 +10,21 @@ class TaskBase(SQLModel):
 
     content: str = Field(index=True, min_length=1, max_length=255)
     priority: int = Field(default=1, ge=1, le=3, description="Priority from 1 to 3")
-    category: str = Field(default="general", index=True)
+    category: str = Field(
+        default="general",
+        index=True,
+        description="Free-text category label; matching is case-sensitive by design.",
+    )
 
 
 class TaskCreate(TaskBase):
-    """Used for type hinting and structural alignment during task creation."""
+    """Schema used to validate input when creating a new task.
+
+    This is the intentional seam between untrusted input (CLI args, imported
+    JSON, etc.) and the ``Task`` table model. It currently mirrors
+    ``TaskBase`` with no additional fields, but exists so creation-specific
+    validation or fields can be added later without touching ``Task`` itself.
+    """
 
 
 class TaskUpdate(SQLModel):

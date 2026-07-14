@@ -39,6 +39,27 @@ def get_engine() -> Engine:
     return _engine
 
 
+def set_engine(engine: Engine | None) -> None:
+    """Override the module-level singleton engine.
+
+    This is the supported way to inject a test engine (or clear it) without
+    reaching into the private ``_engine`` module variable directly.
+
+    Args:
+        engine: The engine to install as the active singleton, or None.
+    """
+    global _engine  # noqa: PLW0603  # module-level singleton engine, swapped in tests
+    _engine = engine
+
+
+def reset_engine() -> None:
+    """Clear the module-level singleton engine.
+
+    The next call to `get_engine` will create a fresh engine.
+    """
+    set_engine(None)
+
+
 def create_db_and_tables() -> None:
     """Create the database tables.
 
