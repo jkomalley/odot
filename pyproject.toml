@@ -134,6 +134,9 @@ addopts = [
 [tool.coverage.run]
 source = ["odot"]
 branch = true
+omit = [
+    "src/odot/__main__.py",
+]
 
 [tool.coverage.report]
 show_missing = true
