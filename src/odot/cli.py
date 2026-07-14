@@ -15,10 +15,15 @@ from rich.table import Table
 from sqlmodel import Session
 
 from odot import core, database
-from odot._format import relative_time, render_task_table
+from odot._format import build_task_choice_labels, relative_time, render_task_table
 from odot.models import Task, TaskCreate, TaskUpdate
 
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+#: At or above this many tasks, `prompt_task_selection` swaps the scrollable
+#: `questionary.select` menu for a type-to-filter `questionary.autocomplete`
+#: prompt, which stays usable when a plain list would be too long to scan.
+AUTOCOMPLETE_THRESHOLD = 20
 
 
 @dataclass
@@ -132,27 +137,66 @@ def require_force(force: bool, prompt: str, *, as_json: bool) -> None:
     typer.confirm(prompt, abort=True)
 
 
+def _cancelled() -> typer.Exit:
+    """Print the shared cancel notice and return an `Exit` for the caller."""
+    console.print("[yellow]Operation cancelled.[/yellow]")
+    return typer.Exit()
+
+
+def _select_task(labels: list[tuple[str, int]], action: str) -> int:
+    """Pick a task via a scrollable `questionary.select` menu (small lists)."""
+    choices = [questionary.Choice(title=label, value=tid) for label, tid in labels]
+    task_id = questionary.select(
+        f"Select a task to {action}:",
+        choices=choices,
+        instruction="(arrow keys; type to filter)",
+        use_search_filter=True,
+        show_selected=True,
+    ).ask()
+    if task_id is None:
+        raise _cancelled()
+    return task_id
+
+
+def _autocomplete_task(labels: list[tuple[str, int]], action: str) -> int:
+    """Pick a task via a type-to-filter `questionary.autocomplete` (large lists).
+
+    `match_middle=True` lets a substring anywhere in the label narrow the list
+    (e.g. typing a category or a word from the content). The free-text answer
+    is validated against the known labels; an unrecognized entry is a hard
+    error (exit 1) rather than a silent miss.
+    """
+    label_to_id = dict(labels)
+    answer = questionary.autocomplete(
+        f"Select a task to {action} (type to filter):",
+        choices=[label for label, _ in labels],
+        match_middle=True,
+    ).ask()
+    if answer is None:
+        raise _cancelled()
+    if answer not in label_to_id:
+        console.print(f'[red]No task matches "{answer}".[/red]')
+        raise typer.Exit(code=1)
+    return label_to_id[answer]
+
+
 def prompt_task_selection(db: Session, action: str) -> int:
-    """Prompt the user to select a task using an interactive TUI list."""
+    """Prompt the user to select a task using an interactive TUI.
+
+    Small task lists use a scrollable `questionary.select` menu; once the
+    count reaches `AUTOCOMPLETE_THRESHOLD` it switches to a type-to-filter
+    `questionary.autocomplete` prompt so long lists stay navigable. Both
+    branches share the same aligned, plain-text labels and cancel handling.
+    """
     tasks = core.list_tasks(db=db)
     if not tasks:
         console.print("[yellow]No tasks available.[/yellow]")
         raise typer.Exit
 
-    choices = [
-        questionary.Choice(
-            title=f"ID {t.id} │ {t.content} [{'✔' if t.is_done else '○'}]", value=t.id
-        )
-        for t in tasks
-    ]
-
-    task_id = questionary.select(f"Select a task to {action}:", choices=choices).ask()
-
-    if task_id is None:
-        console.print("[yellow]Operation cancelled.[/yellow]")
-        raise typer.Exit
-
-    return task_id
+    labels = build_task_choice_labels(tasks)
+    if len(tasks) >= AUTOCOMPLETE_THRESHOLD:
+        return _autocomplete_task(labels, action)
+    return _select_task(labels, action)
 
 
 def version_callback(value: bool) -> None:

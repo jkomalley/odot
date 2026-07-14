@@ -6,8 +6,10 @@ from typing import Any
 from rich.text import Text
 
 from odot._format import (
+    build_task_choice_labels,
     highlight_match,
     priority_display,
+    priority_display_plain,
     relative_time,
     render_task_table,
 )
@@ -43,6 +45,61 @@ class TestPriorityDisplay:
     def test_unknown_priority_falls_back_to_number(self):
         # Guards against malformed/legacy data crashing rendering (#54).
         assert priority_display(0) == "0"
+
+
+class TestPriorityDisplayPlain:
+    def test_plain_labels_carry_no_markup(self):
+        # Questionary titles are printed verbatim, so no [rich] tags may leak.
+        for priority in (1, 2, 3):
+            rendered = priority_display_plain(priority)
+            assert "[" not in rendered
+            assert "●" in rendered
+
+    def test_plain_priority_labels(self):
+        assert priority_display_plain(1) == "● Low"
+        assert priority_display_plain(2) == "●● Med"
+        assert priority_display_plain(3) == "●●● High"
+
+    def test_unknown_priority_falls_back_to_number(self):
+        assert priority_display_plain(9) == "9"
+
+
+class TestBuildTaskChoiceLabels:
+    def test_label_includes_id_status_content_category_priority(self):
+        tasks = [
+            make_task(id=3, content="Buy groceries", category="home", priority=3),
+        ]
+        [(label, task_id)] = build_task_choice_labels(tasks)
+        assert task_id == 3
+        assert "# 3" in label
+        assert "○" in label  # pending glyph
+        assert "Buy groceries" in label
+        assert "home" in label
+        assert "●●● High" in label
+        assert "[" not in label  # no rich markup leaks into the title
+
+    def test_done_task_uses_check_glyph(self):
+        [(label, _)] = build_task_choice_labels([make_task(is_done=True)])
+        assert "✔" in label
+
+    def test_long_content_is_truncated_with_ellipsis(self):
+        long_content = "x" * 60
+        [(label, _)] = build_task_choice_labels([make_task(content=long_content)])
+        assert "…" in label
+        # 30-char budget: 29 characters plus the single-char ellipsis.
+        assert ("x" * 29 + "…") in label
+
+    def test_columns_align_across_rows(self):
+        tasks = [
+            make_task(id=1, category="a"),
+            make_task(id=200, category="longer-category"),
+        ]
+        labels = [label for label, _ in build_task_choice_labels(tasks)]
+        # Padding the id and category cells to a common width means every "│"
+        # separator lands at the same offset in both rows.
+        assert [i for i, c in enumerate(labels[0]) if c == "│"] == [
+            i for i, c in enumerate(labels[1]) if c == "│"
+        ]
 
 
 class TestHighlightMatch:
