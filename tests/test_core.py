@@ -297,7 +297,10 @@ def test_export_tasks(session, tmp_path):
     captured_output = io.StringIO()
     count = core.export_tasks(db=session, pretty=False, output=captured_output)
     assert count == 3
-    data = json.loads(captured_output.getvalue())
+    written = captured_output.getvalue()
+    # Stream output ends with a newline, matching the old print() behavior.
+    assert written.endswith("\n")
+    data = json.loads(written)
     assert len(data) == 3
 
 
@@ -310,7 +313,9 @@ def test_export_tasks_defaults_to_stdout(session, monkeypatch):
 
     count = core.export_tasks(db=session)
     assert count == 1
-    data = json.loads(captured_output.getvalue())
+    written = captured_output.getvalue()
+    assert written.endswith("\n")
+    data = json.loads(written)
     assert len(data) == 1
 
 

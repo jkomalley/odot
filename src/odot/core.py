@@ -222,8 +222,12 @@ def export_tasks(
     indent = 2 if pretty else None
 
     if path is None:
-        json.dump(export_data, output or sys.stdout, indent=indent)
+        stream = output or sys.stdout
+        json.dump(export_data, stream, indent=indent)
+        # Match the old print() behavior so shell prompts land on a new line.
+        stream.write("\n")
     else:
+        # File output deliberately has no trailing newline (unchanged behavior).
         file_path = Path(path)
         with file_path.open("w", encoding="utf-8") as f:
             json.dump(export_data, f, indent=indent)
