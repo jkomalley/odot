@@ -60,5 +60,6 @@ jobs:
           git push origin "v${VERSION}"
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
+            --generate-notes \
             --draft \
             dist/*
