@@ -1,5 +1,7 @@
 """Integration tests for CLI."""
 
+import json
+
 import pytest
 from typer.testing import CliRunner
 
@@ -57,7 +59,7 @@ def test_version():
 
 
 def test_add_command():
-    """Test adding a task via CLI."""
+    """Test adding a task via CLI with explicit content."""
     result = runner.invoke(
         app, ["add", "Test Task", "--priority", "3", "--category", "work"]
     )
@@ -65,25 +67,28 @@ def test_add_command():
     assert "Added task" in result.stdout
     assert "Test Task" in result.stdout
 
-    # Test interactive prompt for add
-    interactive = runner.invoke(
-        app, ["add", "--priority", "2"], input="Interactive task\n"
-    )
-    assert interactive.exit_code == 0
-    assert "Interactive task" in interactive.stdout
+
+def test_add_command_interactive_prompt():
+    """When content is omitted, add falls back to an interactive prompt."""
+    result = runner.invoke(app, ["add", "--priority", "2"], input="Interactive task\n")
+    assert result.exit_code == 0
+    assert "Interactive task" in result.stdout
 
 
-def test_prompt_task_selection(monkeypatch, session):
-    """Test the TUI selection prompt internally tracking missing tasks natively."""
+def test_prompt_task_selection_raises_when_no_tasks(session):
+    """Selecting a task with an empty task list exits instead of prompting."""
     import typer
 
     from odot.cli import prompt_task_selection
 
-    # Needs to raise evaluating empty branches
     with pytest.raises(typer.Exit):
         prompt_task_selection(session, "action")
 
-    # Mocking choices simulating arrows
+
+def test_prompt_task_selection_returns_chosen_id(monkeypatch, session):
+    """Selecting a task returns the id chosen via the TUI list."""
+    from odot.cli import prompt_task_selection
+
     runner.invoke(app, ["add", "Mock selection task"])
 
     class MockSelect:
@@ -94,7 +99,15 @@ def test_prompt_task_selection(monkeypatch, session):
 
     assert prompt_task_selection(session, "select") == 1
 
-    # Test cancelled interaction bounds explicitly natively
+
+def test_prompt_task_selection_raises_on_cancel(monkeypatch, session):
+    """Cancelling the TUI selection (ask returns None) exits."""
+    import typer
+
+    from odot.cli import prompt_task_selection
+
+    runner.invoke(app, ["add", "Mock selection task"])
+
     class MockSelectCancelled:
         def ask(self):
             return None
@@ -105,9 +118,8 @@ def test_prompt_task_selection(monkeypatch, session):
         prompt_task_selection(session, "select")
 
 
-def test_show_command(monkeypatch):
+def test_show_command():
     """Test showing task details via CLI."""
-    # Add a task first
     runner.invoke(app, ["add", "Show me"])
 
     result = runner.invoke(app, ["show", "1"])
@@ -116,32 +128,39 @@ def test_show_command(monkeypatch):
     assert "Pending" in result.stdout
     assert "Updated At" not in result.stdout
 
+
+def test_show_command_after_update_includes_updated_at():
+    """Once a task has been updated, show displays its Updated At field."""
+    runner.invoke(app, ["add", "Show me"])
     runner.invoke(app, ["update", "1", "-p", "3"])
-    updated_result = runner.invoke(app, ["show", "1"])
-    assert updated_result.exit_code == 0
-    assert "Updated At" in updated_result.stdout
 
-    # Test missing task
-    missing = runner.invoke(app, ["show", "999"])
-    assert missing.exit_code == 1
-    assert "Task 999 not found" in missing.stdout
+    result = runner.invoke(app, ["show", "1"])
+    assert result.exit_code == 0
+    assert "Updated At" in result.stdout
 
-    # Test interactive prompt for show
+
+def test_show_command_missing_task():
+    """Showing a nonexistent task reports not-found."""
+    result = runner.invoke(app, ["show", "999"])
+    assert result.exit_code == 1
+    assert "Task 999 not found" in result.stdout
+
+
+def test_show_command_interactive_prompt(monkeypatch):
+    """Omitting a task id falls back to the interactive selection prompt."""
+    runner.invoke(app, ["add", "Show me"])
     monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 1)
-    interactive = runner.invoke(app, ["show"])
-    assert interactive.exit_code == 0
-    assert "Show me" in interactive.stdout
+
+    result = runner.invoke(app, ["show"])
+    assert result.exit_code == 0
+    assert "Show me" in result.stdout
 
 
 def test_list_command():
     """Test listing tasks via CLI."""
-    # Add some tasks
     runner.invoke(app, ["add", "Task A", "--category", "work"])
     runner.invoke(app, ["add", "Task B", "--category", "personal"])
     runner.invoke(app, ["add", "Task C", "--category", "work"])
-
-    # Mark Task B as done
-    runner.invoke(app, ["update", "2", "--done"])
 
     result = runner.invoke(app, ["list"])
     assert result.exit_code == 0
@@ -149,20 +168,38 @@ def test_list_command():
     assert "Task B" in result.stdout
     assert "Task C" in result.stdout
 
-    # Test category filtering
-    cat_result = runner.invoke(app, ["list", "--category", "work"])
-    assert cat_result.exit_code == 0
-    assert "Task A" in cat_result.stdout
-    assert "Task B" not in cat_result.stdout
-    assert "Task C" in cat_result.stdout
 
-    # Test combined filtering
-    combined_result = runner.invoke(app, ["list", "-c", "personal", "--done"])
-    assert combined_result.exit_code == 0
-    assert "Task B" in combined_result.stdout
-    assert "Task A" not in combined_result.stdout
+def test_list_command_category_filter():
+    """The --category filter restricts listed tasks to one category."""
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+    runner.invoke(app, ["add", "Task B", "--category", "personal"])
+    runner.invoke(app, ["add", "Task C", "--category", "work"])
 
-    # Re-prioritize tasks, then verify ascending vs. descending sort order.
+    result = runner.invoke(app, ["list", "--category", "work"])
+    assert result.exit_code == 0
+    assert "Task A" in result.stdout
+    assert "Task B" not in result.stdout
+    assert "Task C" in result.stdout
+
+
+def test_list_command_combined_filters():
+    """Category and done filters can be combined."""
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+    runner.invoke(app, ["add", "Task B", "--category", "personal"])
+    runner.invoke(app, ["add", "Task C", "--category", "work"])
+    runner.invoke(app, ["update", "2", "--done"])
+
+    result = runner.invoke(app, ["list", "-c", "personal", "--done"])
+    assert result.exit_code == 0
+    assert "Task B" in result.stdout
+    assert "Task A" not in result.stdout
+
+
+def test_list_command_sort_order():
+    """The --sort flag orders tasks ascending, and --reverse flips it."""
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+    runner.invoke(app, ["add", "Task B", "--category", "personal"])
+    runner.invoke(app, ["add", "Task C", "--category", "work"])
     runner.invoke(app, ["update", "1", "-p", "3"])
     runner.invoke(app, ["update", "3", "-p", "2"])
 
@@ -176,9 +213,14 @@ def test_list_command():
     assert sort_desc.stdout.index("Task A") < sort_desc.stdout.index("Task C")
     assert sort_desc.stdout.index("Task C") < sort_desc.stdout.index("Task B")
 
-    bad_sort = runner.invoke(app, ["list", "--sort", "invalid_field"])
-    assert bad_sort.exit_code == 1
-    assert "Invalid sort field" in bad_sort.stdout
+
+def test_list_command_invalid_sort_field():
+    """An unrecognized --sort field is rejected."""
+    runner.invoke(app, ["add", "Task A"])
+
+    result = runner.invoke(app, ["list", "--sort", "invalid_field"])
+    assert result.exit_code == 1
+    assert "Invalid sort field" in result.stdout
 
 
 def test_list_command_empty(session):
@@ -188,53 +230,67 @@ def test_list_command_empty(session):
     assert "No tasks found" in result.stdout
 
 
-def test_search_command():
-    """Test search command filtering by phrase."""
+def test_search_command_matches_phrase():
+    """Search returns only tasks whose content matches the given phrase."""
     runner.invoke(app, ["add", "Unique search phrase"])
-    runner.invoke(app, ["add", "Another completely different task"])
+    runner.invoke(app, ["add", "Another different task"])
 
     result = runner.invoke(app, ["search", "search phrase"])
     assert result.exit_code == 0
     assert "Unique search phrase" in result.stdout
     assert "different task" not in result.stdout
 
-    empty = runner.invoke(app, ["search", "nonexistent"])
-    assert empty.exit_code == 0
-    assert "No tasks matching 'nonexistent' found." in empty.stdout
+
+def test_search_command_no_matches():
+    """Search reports when no tasks match the phrase."""
+    runner.invoke(app, ["add", "Unique search phrase"])
+
+    result = runner.invoke(app, ["search", "nonexistent"])
+    assert result.exit_code == 0
+    assert "No tasks matching 'nonexistent' found." in result.stdout
 
 
-def test_update_command(monkeypatch):
-    """Test updating a task via CLI."""
+def test_update_command_sets_explicit_fields():
+    """Explicit --content/--done/--priority flags update those fields."""
     runner.invoke(app, ["add", "Old Task"])
 
-    # Update properties
     result = runner.invoke(
         app, ["update", "1", "--content", "New Task", "--done", "--priority", "2"]
     )
     assert result.exit_code == 0
     assert "Successfully updated task 1" in result.stdout
 
-    # Verify update
     verify = runner.invoke(app, ["show", "1"])
     assert "New Task" in verify.stdout
     assert "Done" in verify.stdout
 
-    # Test updating category independently testing branch coverage
-    category = runner.invoke(app, ["update", "1", "--category", "work"])
-    assert category.exit_code == 0
-    assert "Successfully updated task 1" in category.stdout
 
-    # Test updating nothing (No fields selected via TUI form)
+def test_update_command_single_field():
+    """A single --category flag updates only that field."""
+    runner.invoke(app, ["add", "Old Task"])
+
+    result = runner.invoke(app, ["update", "1", "--category", "work"])
+    assert result.exit_code == 0
+    assert "Successfully updated task 1" in result.stdout
+
+
+def test_update_command_no_fields_selected(monkeypatch):
+    """Cancelling the interactive checkbox with no fields selected is an error."""
+    runner.invoke(app, ["add", "Old Task"])
+
     class MockEmptyCheckbox:
         def ask(self):
             return []
 
     monkeypatch.setattr("questionary.checkbox", lambda *a, **k: MockEmptyCheckbox())
-    empty = runner.invoke(app, ["update", "1"])
-    assert empty.exit_code == 1
-    assert "No updates provided." in empty.stdout
 
-    # Test completely answering all fields dynamically inside TUI interactive forms
+    result = runner.invoke(app, ["update", "1"])
+    assert result.exit_code == 1
+    assert "No updates provided." in result.stdout
+
+
+def test_update_command_interactive_all_fields(monkeypatch):
+    """Selecting every field in the interactive TUI updates them all."""
     runner.invoke(app, ["add", "Second task here"])
 
     class MockFullCheckbox:
@@ -254,32 +310,36 @@ def test_update_command(monkeypatch):
     monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectPriority())
     monkeypatch.setattr("questionary.confirm", lambda *a, **k: MockConfirmDone())
 
-    tui_all = runner.invoke(app, ["update", "2"])
-    assert tui_all.exit_code == 0
+    result = runner.invoke(app, ["update", "1"])
+    assert result.exit_code == 0
 
-    # Check changes evaluated correctly
-    verify2 = runner.invoke(app, ["show", "2"])
-    assert "Interactively Updated" in verify2.stdout
-    assert "3" in verify2.stdout
-    assert "Done" in verify2.stdout
+    verify = runner.invoke(app, ["show", "1"])
+    assert "Interactively Updated" in verify.stdout
+    assert "3" in verify.stdout
+    assert "Done" in verify.stdout
 
-    # With explicit fields given, no task-selection prompt should appear.
+
+def test_update_command_explicit_fields_skip_task_prompt(monkeypatch):
+    """With explicit update flags given, no task-selection prompt should appear."""
+    runner.invoke(app, ["add", "Old Task"])
     monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 1)
-    interactive = runner.invoke(app, ["update", "--priority", "1"])
-    assert interactive.exit_code == 0
-    assert "Successfully updated task 1" in interactive.stdout
 
-    # Updating a nonexistent task should report not-found.
-    missing = runner.invoke(app, ["update", "999", "--done"])
-    assert missing.exit_code == 1
-    assert "Task 999 not found" in missing.stdout
+    result = runner.invoke(app, ["update", "--priority", "1"])
+    assert result.exit_code == 0
+    assert "Successfully updated task 1" in result.stdout
 
 
-def test_update_interactive_partial(monkeypatch):
-    """Interactive update touching only a subset of fields skips the others."""
+def test_update_command_missing_task():
+    """Updating a nonexistent task should report not-found."""
+    result = runner.invoke(app, ["update", "999", "--done"])
+    assert result.exit_code == 1
+    assert "Task 999 not found" in result.stdout
+
+
+def test_update_interactive_partial_content_only(monkeypatch):
+    """Selecting only 'content' in the TUI checkbox skips the other fields."""
     runner.invoke(app, ["add", "Partial task"])
 
-    # Select only 'content' so the priority/category/done branches are skipped.
     class MockContentOnlyCheckbox:
         def ask(self):
             return ["content"]
@@ -289,12 +349,15 @@ def test_update_interactive_partial(monkeypatch):
     )
     monkeypatch.setattr("rich.prompt.Prompt.ask", lambda *a: "Only content changed")
 
-    content_only = runner.invoke(app, ["update", "1"])
-    assert content_only.exit_code == 0
-    assert "Successfully updated task 1" in content_only.stdout
+    result = runner.invoke(app, ["update", "1"])
+    assert result.exit_code == 0
+    assert "Successfully updated task 1" in result.stdout
 
-    # Select 'priority' but cancel the priority prompt (select returns None),
-    # leaving the field unset.
+
+def test_update_interactive_partial_cancelled_priority(monkeypatch):
+    """Selecting 'priority' but cancelling its prompt leaves the field unset."""
+    runner.invoke(app, ["add", "Partial task"])
+
     class MockPriorityOnlyCheckbox:
         def ask(self):
             return ["priority"]
@@ -308,13 +371,13 @@ def test_update_interactive_partial(monkeypatch):
     )
     monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectCancelled())
 
-    cancelled = runner.invoke(app, ["update", "1"])
-    assert cancelled.exit_code == 0
-    assert "Successfully updated task 1" in cancelled.stdout
+    result = runner.invoke(app, ["update", "1"])
+    assert result.exit_code == 0
+    assert "Successfully updated task 1" in result.stdout
 
 
-def test_done_command(monkeypatch):
-    """Test marking a task as done via the done shortcut command."""
+def test_done_command():
+    """Marking a task done via the done shortcut updates its status."""
     runner.invoke(app, ["add", "Finish me"])
 
     result = runner.invoke(app, ["done", "1"])
@@ -324,18 +387,26 @@ def test_done_command(monkeypatch):
     verify = runner.invoke(app, ["show", "1"])
     assert "Done" in verify.stdout
 
-    missing = runner.invoke(app, ["done", "999"])
-    assert missing.exit_code == 1
-    assert "Task 999 not found" in missing.stdout
 
+def test_done_command_missing_task():
+    """Marking a nonexistent task done reports not-found."""
+    result = runner.invoke(app, ["done", "999"])
+    assert result.exit_code == 1
+    assert "Task 999 not found" in result.stdout
+
+
+def test_done_command_interactive_prompt(monkeypatch):
+    """Omitting a task id falls back to the interactive selection prompt."""
+    runner.invoke(app, ["add", "Finish me"])
     monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 1)
-    interactive = runner.invoke(app, ["done"])
-    assert interactive.exit_code == 0
-    assert "marked as done" in interactive.stdout
+
+    result = runner.invoke(app, ["done"])
+    assert result.exit_code == 0
+    assert "marked as done" in result.stdout
 
 
-def test_undo_command(monkeypatch):
-    """Test re-opening a completed task via the undo shortcut command."""
+def test_undo_command():
+    """Re-opening a completed task via undo resets its status."""
     runner.invoke(app, ["add", "Already done"])
     runner.invoke(app, ["done", "1"])
 
@@ -346,145 +417,171 @@ def test_undo_command(monkeypatch):
     verify = runner.invoke(app, ["show", "1"])
     assert "Pending" in verify.stdout
 
-    missing = runner.invoke(app, ["undo", "999"])
-    assert missing.exit_code == 1
-    assert "Task 999 not found" in missing.stdout
 
+def test_undo_command_missing_task():
+    """Undoing a nonexistent task reports not-found."""
+    result = runner.invoke(app, ["undo", "999"])
+    assert result.exit_code == 1
+    assert "Task 999 not found" in result.stdout
+
+
+def test_undo_command_interactive_prompt(monkeypatch):
+    """Omitting a task id falls back to the interactive selection prompt."""
+    runner.invoke(app, ["add", "Already done"])
+    runner.invoke(app, ["done", "1"])
     monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 1)
-    interactive = runner.invoke(app, ["undo"])
-    assert interactive.exit_code == 0
-    assert "re-opened" in interactive.stdout
+
+    result = runner.invoke(app, ["undo"])
+    assert result.exit_code == 0
+    assert "re-opened" in result.stdout
 
 
-def test_rm_command(monkeypatch):
-    """Test removing a task via CLI."""
+def test_rm_command_with_force_flag():
+    """The --force flag deletes a task without a confirmation prompt."""
     runner.invoke(app, ["add", "Delete me"])
-    runner.invoke(app, ["add", "Delete me too"])
-    runner.invoke(app, ["add", "Task three"])
 
-    # Test deletion with explicit force flag
     result = runner.invoke(app, ["rm", "1", "--force"])
     assert result.exit_code == 0
     assert "Deleted task 1" in result.stdout
 
-    # Verify deletion
     verify = runner.invoke(app, ["show", "1"])
     assert verify.exit_code == 1
 
-    # Test aborted deletion via confirm
-    aborted = runner.invoke(app, ["rm", "2"], input="n\n")
-    assert aborted.exit_code == 1
-    assert "Are you sure you want to delete task 2?" in aborted.stdout
 
-    # Confirmed deletion via the interactive task-id prompt.
-    monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 2)
-    confirmed = runner.invoke(app, ["rm"], input="y\n")
-    assert confirmed.exit_code == 0
-    assert "Deleted task 2" in confirmed.stdout
+def test_rm_command_aborted_confirmation():
+    """Declining the confirmation prompt leaves the task in place."""
+    runner.invoke(app, ["add", "Delete me too"])
 
-    # Test deleting missing task
-    missing = runner.invoke(app, ["rm", "999", "--force"])
-    assert missing.exit_code == 1
-    assert "Task 999 not found" in missing.stdout
+    result = runner.invoke(app, ["rm", "1"], input="n\n")
+    assert result.exit_code == 1
+    assert "Are you sure you want to delete task 1?" in result.stdout
 
 
-def test_clean_command():
-    """Test cleaning completed tasks via CLI."""
+def test_rm_command_interactive_prompt_confirmed(monkeypatch):
+    """Confirmed deletion via the interactive task-id prompt removes the task."""
+    runner.invoke(app, ["add", "Delete me too"])
+    monkeypatch.setattr("odot.cli.prompt_task_selection", lambda db, action: 1)
+
+    result = runner.invoke(app, ["rm"], input="y\n")
+    assert result.exit_code == 0
+    assert "Deleted task 1" in result.stdout
+
+
+def test_rm_command_missing_task():
+    """Deleting a nonexistent task reports not-found."""
+    result = runner.invoke(app, ["rm", "999", "--force"])
+    assert result.exit_code == 1
+    assert "Task 999 not found" in result.stdout
+
+
+def test_clean_command_aborted():
+    """Declining the clean confirmation prompt leaves completed tasks in place."""
+    runner.invoke(app, ["add", "Keep me 1"])
+    runner.invoke(app, ["add", "Delete me 1"])
+    runner.invoke(app, ["update", "2", "--done"])
+
+    result = runner.invoke(app, ["clean"], input="n\n")
+    assert result.exit_code == 1
+    assert "Are you sure you want to delete all completed tasks?" in result.stdout
+
+
+def test_clean_command_confirmed():
+    """Confirming clean removes only the completed tasks."""
     runner.invoke(app, ["add", "Keep me 1"])
     runner.invoke(app, ["add", "Delete me 1"])
     runner.invoke(app, ["add", "Keep me 2"])
     runner.invoke(app, ["add", "Delete me 2"])
-
     runner.invoke(app, ["update", "2", "--done"])
     runner.invoke(app, ["update", "4", "--done"])
 
-    # Base abort interaction
-    aborted = runner.invoke(app, ["clean"], input="n\n")
-    assert aborted.exit_code == 1
-    assert "Are you sure you want to delete all completed tasks?" in aborted.stdout
+    result = runner.invoke(app, ["clean"], input="y\n")
+    assert result.exit_code == 0
+    assert "Deleted 2 completed tasks." in result.stdout
 
-    # Actually execute cleanly via prompt
-    confirmed = runner.invoke(app, ["clean"], input="y\n")
-    assert confirmed.exit_code == 0
-    assert "Deleted 2 completed tasks." in confirmed.stdout
-
-    # List mapping validation ensuring properties weren't wiped entirely globally
     list_after = runner.invoke(app, ["list"])
     assert "Keep me 1" in list_after.stdout
     assert "Keep me 2" in list_after.stdout
     assert "Delete me 1" not in list_after.stdout
 
-    # Now verify mapping gracefully returns yellow context missing records safely
-    empty = runner.invoke(app, ["clean", "--force"])
-    assert empty.exit_code == 0
-    assert "No completed tasks to delete." in empty.stdout
+
+def test_clean_command_nothing_to_clean():
+    """Cleaning with no completed tasks reports there is nothing to delete."""
+    runner.invoke(app, ["add", "Keep me 1"])
+
+    result = runner.invoke(app, ["clean", "--force"])
+    assert result.exit_code == 0
+    assert "No completed tasks to delete." in result.stdout
 
 
-def test_purge_command():
-    """Test purging all tasks via CLI."""
+def test_purge_command_aborted():
+    """Declining the purge confirmation prompt leaves all tasks in place."""
+    runner.invoke(app, ["add", "Delete me 1"])
+
+    result = runner.invoke(app, ["purge"], input="n\n")
+    assert result.exit_code == 1
+    assert "WARNING: This will permanently delete ALL tasks." in result.stdout
+
+    list_after = runner.invoke(app, ["list"])
+    assert "Delete me 1" in list_after.stdout
+
+
+def test_purge_command_confirmed():
+    """Confirming purge deletes every task in the database."""
     runner.invoke(app, ["add", "Delete me 1"])
     runner.invoke(app, ["add", "Delete me 2"])
 
-    # Check that it aborts without --force or "y"
-    aborted = runner.invoke(app, ["purge"], input="n\n")
-    assert aborted.exit_code == 1
-    assert "WARNING: This will permanently delete ALL tasks." in aborted.stdout
-
-    # Verify tasks are still there
-    list_after_abort = runner.invoke(app, ["list"])
-    assert "Delete me 1" in list_after_abort.stdout
-
-    # Check mapping prompt affirmatively natively
-    confirmed = runner.invoke(app, ["purge"], input="y\n")
-    assert confirmed.exit_code == 0
-    assert "Purged 2 tasks" in confirmed.stdout
-
-    # Now with 0 tasks and --force
-    force = runner.invoke(app, ["purge", "--force"])
-    assert force.exit_code == 0
-    assert "Purged 0 tasks" in force.stdout
+    result = runner.invoke(app, ["purge"], input="y\n")
+    assert result.exit_code == 0
+    assert "Purged 2 tasks" in result.stdout
 
 
-def test_export_command(tmp_path):
-    """Test exporting JSON payloads via CLI mapping conditional filters."""
+def test_purge_command_force_with_no_tasks():
+    """Purging an empty database with --force reports zero tasks purged."""
+    result = runner.invoke(app, ["purge", "--force"])
+    assert result.exit_code == 0
+    assert "Purged 0 tasks" in result.stdout
+
+
+def test_export_command_writes_filtered_file(tmp_path):
+    """Exporting with a category filter and --pretty writes only matching tasks."""
     runner.invoke(app, ["add", "Export task 1", "--category", "work"])
     runner.invoke(app, ["add", "Export task 2"])
 
     export_file = tmp_path / "export.json"
-
-    # Export matching filtered bounds cleanly
     result = runner.invoke(
         app, ["export", str(export_file), "--category", "work", "--pretty"]
     )
     assert result.exit_code == 0
     assert "Successfully exported 1 tasks" in result.stdout
 
-    import json
-
     with export_file.open() as f:
         data = json.load(f)
         assert len(data) == 1
         assert data[0]["content"] == "Export task 1"
 
-    # Exporting with a filter that matches nothing yields empty output.
-    # (stdout path, no file written)
-    result_none = runner.invoke(app, ["export", "--category", "work"])
-    assert result_none.exit_code == 0
-    assert "Export task 1" in result_none.stdout
-    assert "Successfully exported" not in result_none.stdout
 
-    # Test pretty printing securely conditionally tracking empty mappings
-    result_none_pretty = runner.invoke(app, ["export", "--pretty"])
-    assert result_none_pretty.exit_code == 0
-    assert "Export task 1" in result_none_pretty.stdout
+def test_export_command_without_path_writes_to_stdout():
+    """Exporting without a target path prints JSON to stdout, no file written."""
+    runner.invoke(app, ["add", "Export task 1", "--category", "work"])
+
+    result = runner.invoke(app, ["export", "--category", "work"])
+    assert result.exit_code == 0
+    assert "Export task 1" in result.stdout
+    assert "Successfully exported" not in result.stdout
 
 
-def test_import_command(tmp_path):
-    """Test importing payloads mapping clear bounds checking safely natively."""
-    import json
+def test_export_command_pretty_to_stdout():
+    """The --pretty flag also applies to stdout export output."""
+    runner.invoke(app, ["add", "Export task 1", "--category", "work"])
 
+    result = runner.invoke(app, ["export", "--pretty"])
+    assert result.exit_code == 0
+    assert "Export task 1" in result.stdout
+
+
+def test_import_command_adds_tasks(tmp_path):
+    """Importing a JSON file adds its tasks alongside existing ones."""
     import_file = tmp_path / "import.json"
-
     payload = [
         {
             "content": "CLI Import Task",
@@ -495,55 +592,76 @@ def test_import_command(tmp_path):
     ]
     with import_file.open("w") as f:
         json.dump(payload, f)
-
     runner.invoke(app, ["add", "Pre existing task"])
 
-    # Normal import
     result = runner.invoke(app, ["import", str(import_file)])
     assert result.exit_code == 0
     assert "Successfully imported 1 tasks" in result.stdout
 
-    # Clear abort logic testing explicitly evaluating safety checks
-    aborted = runner.invoke(app, ["import", str(import_file), "--clear"], input="n\n")
-    assert aborted.exit_code == 1
-    assert "Are you incredibly sure you want to clear the database?" in aborted.stdout
 
-    # Clear confirmed natively mapping securely tracking reset conditionally explicitly
-    confirmed = runner.invoke(app, ["import", str(import_file), "--clear"], input="y\n")
-    assert confirmed.exit_code == 0
-    assert "Successfully imported 1 tasks" in confirmed.stdout
+def test_import_command_clear_aborted(tmp_path):
+    """Declining the --clear confirmation leaves the database untouched."""
+    import_file = tmp_path / "import.json"
+    payload = [{"content": "CLI Import Task", "priority": 3, "is_done": False}]
+    with import_file.open("w") as f:
+        json.dump(payload, f)
+    runner.invoke(app, ["add", "Pre existing task"])
 
-    # Verify ONLY the imported task natively exists
+    result = runner.invoke(app, ["import", str(import_file), "--clear"], input="n\n")
+    assert result.exit_code == 1
+    assert "Are you incredibly sure you want to clear the database?" in result.stdout
+
+
+def test_import_command_clear_confirmed(tmp_path):
+    """Confirming --clear wipes existing tasks before importing the new ones."""
+    import_file = tmp_path / "import.json"
+    payload = [{"content": "CLI Import Task", "priority": 3, "is_done": False}]
+    with import_file.open("w") as f:
+        json.dump(payload, f)
+    runner.invoke(app, ["add", "Pre existing task"])
+
+    result = runner.invoke(app, ["import", str(import_file), "--clear"], input="y\n")
+    assert result.exit_code == 0
+    assert "Successfully imported 1 tasks" in result.stdout
+
     lists = runner.invoke(app, ["list"])
     assert "CLI Import Task" in lists.stdout
     assert "Pre existing task" not in lists.stdout
 
-    # Importing a missing file should fail gracefully.
-    # Typer natively exits with 2 for missing file objects explicitly
-    missing = runner.invoke(app, ["import", "missing.json"])
-    assert missing.exit_code == 2
 
-    # Malformed JSON should be reported as an import failure.
+def test_import_command_missing_file():
+    """Importing a missing file exits with typer's standard file-not-found code."""
+    result = runner.invoke(app, ["import", "missing.json"])
+    assert result.exit_code == 2
+
+
+def test_import_command_malformed_json(tmp_path):
+    """Malformed JSON should be reported as an import failure."""
     bad_json_file = tmp_path / "bad.json"
-    bad_json_file.write_text("invalid completely")
-    bad_run = runner.invoke(app, ["import", str(bad_json_file)])
-    assert bad_run.exit_code == 1
-    assert "Failed to import tasks" in bad_run.stdout
+    bad_json_file.write_text("invalid json")
+
+    result = runner.invoke(app, ["import", str(bad_json_file)])
+    assert result.exit_code == 1
+    assert "Failed to import tasks" in result.stdout
 
 
-def test_report_command(session, tmp_path):
-    """Test generating Markdown and HTML reports natively gracefully securely."""
-    # Seed DB
+@pytest.fixture
+def seeded_report_tasks():
+    """Seed a work task and a completed personal task for report tests."""
     runner.invoke(app, ["add", "Work task", "-c", "work", "-p", "3"])
     runner.invoke(app, ["add", "Personal task", "-c", "personal", "-p", "1"])
     runner.invoke(app, ["update", "2", "--done"])
 
-    # Test Markdown
+
+def test_report_command_markdown(seeded_report_tasks, tmp_path):
+    """Generating a Markdown report groups tasks by category with checkboxes."""
     md_file = tmp_path / "report.md"
-    result_md = runner.invoke(app, ["report", str(md_file)])
-    assert result_md.exit_code == 0
-    assert "Successfully generated report" in result_md.stdout
+
+    result = runner.invoke(app, ["report", str(md_file)])
+    assert result.exit_code == 0
+    assert "Successfully generated report" in result.stdout
     assert md_file.exists()
+
     md_content = md_file.read_text()
     assert "# Odot Task Report" in md_content
     assert "## Work" in md_content
@@ -551,45 +669,60 @@ def test_report_command(session, tmp_path):
     assert "## Personal" in md_content
     assert "- [x] Personal task (Priority: 1)" in md_content
 
-    # Test HTML
+
+def test_report_command_html(seeded_report_tasks, tmp_path):
+    """Generating an HTML report with --done filters to completed tasks only."""
     html_file = tmp_path / "report.html"
-    result_html = runner.invoke(app, ["report", str(html_file), "--done"])
-    assert result_html.exit_code == 0
+
+    result = runner.invoke(app, ["report", str(html_file), "--done"])
+    assert result.exit_code == 0
     assert html_file.exists()
+
     html_content = html_file.read_text()
     assert "<title>Odot Task Report</title>" in html_content
     assert "Personal task" in html_content
-    assert "Work task" not in html_content  # filtered
+    assert "Work task" not in html_content
 
-    # Test Unsupported Format
+
+def test_report_command_unsupported_format(seeded_report_tasks, tmp_path):
+    """An unrecognized output extension is rejected and no file is written."""
     txt_file = tmp_path / "report.txt"
-    result_txt = runner.invoke(app, ["report", str(txt_file)])
-    assert result_txt.exit_code == 1
-    assert "Unsupported format" in result_txt.stdout
+
+    result = runner.invoke(app, ["report", str(txt_file)])
+    assert result.exit_code == 1
+    assert "Unsupported format" in result.stdout
     assert not txt_file.exists()
 
-    # Test Empty Reporting
-    runner.invoke(app, ["clean"])  # get rid of the completed task
-    runner.invoke(app, ["purge"], input="y\n")  # clear everything
+
+def test_report_command_empty(session, tmp_path):
+    """Generating a report with no matching tasks reports there is nothing."""
     empty_file = tmp_path / "empty.md"
-    result_empty = runner.invoke(app, ["report", str(empty_file)])
-    assert result_empty.exit_code == 0
-    assert "No tasks found" in result_empty.stdout
+
+    result = runner.invoke(app, ["report", str(empty_file)])
+    assert result.exit_code == 0
+    assert "No tasks found" in result.stdout
     assert not empty_file.exists()
 
-    # Test Invalid Sort
-    bad_sort = runner.invoke(app, ["report", str(md_file), "--sort", "invalid"])
-    assert bad_sort.exit_code == 1
-    assert "Invalid sort field" in bad_sort.stdout
 
-    # Test Exception on Write
-    # Feed it a directory instead of a file to trigger write_text failure
+def test_report_command_invalid_sort(tmp_path):
+    """An unrecognized --sort field is rejected."""
+    runner.invoke(app, ["add", "Valid Task"])
+    md_file = tmp_path / "report.md"
+
+    result = runner.invoke(app, ["report", str(md_file), "--sort", "invalid"])
+    assert result.exit_code == 1
+    assert "Invalid sort field" in result.stdout
+
+
+def test_report_command_write_failure(tmp_path):
+    """Writing to a path that is a directory surfaces a write failure."""
     dir_path = tmp_path / "dir.md"
     dir_path.mkdir()
     runner.invoke(app, ["add", "Valid Task"])
-    error_run = runner.invoke(app, ["report", str(dir_path)])
-    assert error_run.exit_code == 1
-    assert "Failed to write report" in error_run.stdout
+
+    result = runner.invoke(app, ["report", str(dir_path)])
+    assert result.exit_code == 1
+    assert "Failed to write report" in result.stdout
 
 
 def test_main_execution(monkeypatch):
