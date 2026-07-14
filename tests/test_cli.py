@@ -38,6 +38,9 @@ def test_main_callback_skips_init_when_session_present():
 
     class FakeContext:
         obj = "existing-session"
+        # Non-None so main_callback's bare-invocation branch (#61) is skipped;
+        # that branch is exercised separately by the bare-invocation tests.
+        invoked_subcommand = "list"
 
     ctx = FakeContext()
     main_callback(ctx)  # ty: ignore[invalid-argument-type]
@@ -215,19 +218,52 @@ def test_list_command_sort_order():
 
 
 def test_list_command_invalid_sort_field():
-    """An unrecognized --sort field is rejected."""
+    """An unrecognized --sort field is rejected at parse time by Typer (exit 2)."""
     runner.invoke(app, ["add", "Task A"])
 
     result = runner.invoke(app, ["list", "--sort", "invalid_field"])
-    assert result.exit_code == 1
-    assert "Invalid sort field" in result.stdout
+    assert result.exit_code == 2
+    assert "invalid_field" in result.output
 
 
 def test_list_command_empty(session):
-    """Test list command when no tasks exist."""
+    """An empty database shows an onboarding hint rather than a bare message (#58)."""
     result = runner.invoke(app, ["list"])
     assert result.exit_code == 0
-    assert "No tasks found" in result.stdout
+    assert "No tasks yet" in result.stdout
+    assert "odot add" in result.stdout
+
+
+def test_list_command_empty_filtered_by_category():
+    """A category filter that matches nothing names the filter and true total (#58)."""
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+
+    result = runner.invoke(app, ["list", "--category", "personal"])
+    assert result.exit_code == 0
+    assert 'No tasks found in "personal"' in result.stdout
+    assert "1 total tasks" in result.stdout
+
+
+def test_list_command_empty_filtered_by_done():
+    """A --done filter that matches nothing reports the status and true total (#58)."""
+    runner.invoke(app, ["add", "Task A"])
+
+    result = runner.invoke(app, ["list", "--done"])
+    assert result.exit_code == 0
+    assert "No completed tasks found" in result.stdout
+    assert "1 total tasks" in result.stdout
+
+
+def test_list_command_empty_filtered_by_both():
+    """Combined category and status filters both appear in the empty message (#58)."""
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+    runner.invoke(app, ["update", "1", "--done"])
+
+    # Task A is done, so filtering to pending work tasks matches nothing.
+    result = runner.invoke(app, ["list", "--category", "work", "--todo"])
+    assert result.exit_code == 0
+    assert "No pending tasks found" in result.stdout
+    assert '"work"' in result.stdout
 
 
 def test_search_command_matches_phrase():
@@ -258,7 +294,11 @@ def test_update_command_sets_explicit_fields():
         app, ["update", "1", "--content", "New Task", "--done", "--priority", "2"]
     )
     assert result.exit_code == 0
-    assert "Successfully updated task 1" in result.stdout
+    assert "Updated task #1" in result.stdout
+    # Diff lines (#57) echo the specific fields that changed.
+    assert "content: Old Task → New Task" in result.stdout
+    assert "priority: 1 → 2" in result.stdout
+    assert "status: Pending → Done" in result.stdout
 
     verify = runner.invoke(app, ["show", "1"])
     assert "New Task" in verify.stdout
@@ -271,7 +311,10 @@ def test_update_command_single_field():
 
     result = runner.invoke(app, ["update", "1", "--category", "work"])
     assert result.exit_code == 0
-    assert "Successfully updated task 1" in result.stdout
+    assert "Updated task #1" in result.stdout
+    assert "category: general → work" in result.stdout
+    # Unchanged fields should not appear in the diff.
+    assert "content:" not in result.stdout
 
 
 def test_update_command_no_fields_selected(monkeypatch):
@@ -326,7 +369,7 @@ def test_update_command_explicit_fields_skip_task_prompt(monkeypatch):
 
     result = runner.invoke(app, ["update", "--priority", "1"])
     assert result.exit_code == 0
-    assert "Successfully updated task 1" in result.stdout
+    assert "Updated task #1" in result.stdout
 
 
 def test_update_command_missing_task():
@@ -351,7 +394,8 @@ def test_update_interactive_partial_content_only(monkeypatch):
 
     result = runner.invoke(app, ["update", "1"])
     assert result.exit_code == 0
-    assert "Successfully updated task 1" in result.stdout
+    assert "Updated task #1" in result.stdout
+    assert "content: Partial task → Only content changed" in result.stdout
 
 
 def test_update_interactive_partial_cancelled_priority(monkeypatch):
@@ -373,7 +417,9 @@ def test_update_interactive_partial_cancelled_priority(monkeypatch):
 
     result = runner.invoke(app, ["update", "1"])
     assert result.exit_code == 0
-    assert "Successfully updated task 1" in result.stdout
+    assert "Updated task #1" in result.stdout
+    # Priority was never actually set, so no diff line for it appears.
+    assert "priority:" not in result.stdout
 
 
 def test_done_command():
@@ -382,7 +428,8 @@ def test_done_command():
 
     result = runner.invoke(app, ["done", "1"])
     assert result.exit_code == 0
-    assert "marked as done" in result.stdout
+    assert "Marked done" in result.stdout
+    assert "Finish me" in result.stdout
 
     verify = runner.invoke(app, ["show", "1"])
     assert "Done" in verify.stdout
@@ -402,7 +449,7 @@ def test_done_command_interactive_prompt(monkeypatch):
 
     result = runner.invoke(app, ["done"])
     assert result.exit_code == 0
-    assert "marked as done" in result.stdout
+    assert "Marked done" in result.stdout
 
 
 def test_undo_command():
@@ -412,7 +459,8 @@ def test_undo_command():
 
     result = runner.invoke(app, ["undo", "1"])
     assert result.exit_code == 0
-    assert "re-opened" in result.stdout
+    assert "Re-opened" in result.stdout
+    assert "Already done" in result.stdout
 
     verify = runner.invoke(app, ["show", "1"])
     assert "Pending" in verify.stdout
@@ -433,7 +481,7 @@ def test_undo_command_interactive_prompt(monkeypatch):
 
     result = runner.invoke(app, ["undo"])
     assert result.exit_code == 0
-    assert "re-opened" in result.stdout
+    assert "Re-opened" in result.stdout
 
 
 def test_rm_command_with_force_flag():
@@ -442,7 +490,8 @@ def test_rm_command_with_force_flag():
 
     result = runner.invoke(app, ["rm", "1", "--force"])
     assert result.exit_code == 0
-    assert "Deleted task 1" in result.stdout
+    assert "Deleted task #1" in result.stdout
+    assert "Delete me" in result.stdout
 
     verify = runner.invoke(app, ["show", "1"])
     assert verify.exit_code == 1
@@ -454,7 +503,9 @@ def test_rm_command_aborted_confirmation():
 
     result = runner.invoke(app, ["rm", "1"], input="n\n")
     assert result.exit_code == 1
-    assert "Are you sure you want to delete task 1?" in result.stdout
+    # Task content is echoed in the prompt (#57) so users confirm by what
+    # they remember, not by numeric id.
+    assert 'Delete "Delete me too" (task #1)?' in result.stdout
 
 
 def test_rm_command_interactive_prompt_confirmed(monkeypatch):
@@ -464,7 +515,7 @@ def test_rm_command_interactive_prompt_confirmed(monkeypatch):
 
     result = runner.invoke(app, ["rm"], input="y\n")
     assert result.exit_code == 0
-    assert "Deleted task 1" in result.stdout
+    assert "Deleted task #1" in result.stdout
 
 
 def test_rm_command_missing_task():
@@ -496,7 +547,7 @@ def test_clean_command_confirmed():
 
     result = runner.invoke(app, ["clean"], input="y\n")
     assert result.exit_code == 0
-    assert "Deleted 2 completed tasks." in result.stdout
+    assert "Cleaned 2 completed tasks." in result.stdout
 
     list_after = runner.invoke(app, ["list"])
     assert "Keep me 1" in list_after.stdout
@@ -552,7 +603,7 @@ def test_export_command_writes_filtered_file(tmp_path):
         app, ["export", str(export_file), "--category", "work", "--pretty"]
     )
     assert result.exit_code == 0
-    assert "Successfully exported 1 tasks" in result.stdout
+    assert "Exported 1 tasks" in result.stdout
 
     with export_file.open() as f:
         data = json.load(f)
@@ -567,7 +618,7 @@ def test_export_command_without_path_writes_to_stdout():
     result = runner.invoke(app, ["export", "--category", "work"])
     assert result.exit_code == 0
     assert "Export task 1" in result.stdout
-    assert "Successfully exported" not in result.stdout
+    assert "Exported" not in result.stdout
 
 
 def test_export_command_pretty_to_stdout():
@@ -596,7 +647,7 @@ def test_import_command_adds_tasks(tmp_path):
 
     result = runner.invoke(app, ["import", str(import_file)])
     assert result.exit_code == 0
-    assert "Successfully imported 1 tasks" in result.stdout
+    assert "Imported 1 tasks" in result.stdout
 
 
 def test_import_command_clear_aborted(tmp_path):
@@ -622,7 +673,7 @@ def test_import_command_clear_confirmed(tmp_path):
 
     result = runner.invoke(app, ["import", str(import_file), "--clear"], input="y\n")
     assert result.exit_code == 0
-    assert "Successfully imported 1 tasks" in result.stdout
+    assert "Imported 1 tasks" in result.stdout
 
     lists = runner.invoke(app, ["list"])
     assert "CLI Import Task" in lists.stdout
@@ -659,7 +710,7 @@ def test_report_command_markdown(seeded_report_tasks, tmp_path):
 
     result = runner.invoke(app, ["report", str(md_file)])
     assert result.exit_code == 0
-    assert "Successfully generated report" in result.stdout
+    assert "Generated report" in result.stdout
     assert md_file.exists()
 
     md_content = md_file.read_text()
@@ -705,13 +756,13 @@ def test_report_command_empty(session, tmp_path):
 
 
 def test_report_command_invalid_sort(tmp_path):
-    """An unrecognized --sort field is rejected."""
+    """An unrecognized --sort field is rejected at parse time by Typer (exit 2)."""
     runner.invoke(app, ["add", "Valid Task"])
     md_file = tmp_path / "report.md"
 
     result = runner.invoke(app, ["report", str(md_file), "--sort", "invalid"])
-    assert result.exit_code == 1
-    assert "Invalid sort field" in result.stdout
+    assert result.exit_code == 2
+    assert "invalid" in result.output
 
 
 def test_report_command_write_failure(tmp_path):
@@ -767,3 +818,256 @@ def test_auto_initializes_database(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert initialized, "create_db_and_tables should have been called"
     assert "Database initialized" in result.stdout
+
+
+# --------------------------------------------------------------------------- #
+# SortField / core.VALID_SORT_FIELDS parity (#61 refactor prerequisite)
+# --------------------------------------------------------------------------- #
+
+
+def test_sort_field_enum_matches_core_valid_sort_fields():
+    """SortField values must stay in sync with core.VALID_SORT_FIELDS."""
+    from odot import core
+    from odot.cli import SortField
+
+    assert {f.value for f in SortField} == set(core.VALID_SORT_FIELDS)
+
+
+# --------------------------------------------------------------------------- #
+# #54: priority indicators
+# --------------------------------------------------------------------------- #
+
+
+def test_list_command_shows_priority_dot_indicators():
+    """Priorities render as colored dot indicators, not bare numbers (#54)."""
+    runner.invoke(app, ["add", "Low priority", "-p", "1"])
+    runner.invoke(app, ["add", "Med priority", "-p", "2"])
+    runner.invoke(app, ["add", "High priority", "-p", "3"])
+
+    result = runner.invoke(app, ["list"])
+    assert result.exit_code == 0
+    assert "Low" in result.stdout
+    assert "Med" in result.stdout
+    assert "High" in result.stdout
+    assert "●" in result.stdout
+
+
+# --------------------------------------------------------------------------- #
+# #55: list summary footer
+# --------------------------------------------------------------------------- #
+
+
+def test_list_command_summary_footer_counts():
+    """The footer beneath the table reports total/pending/done counts (#55)."""
+    runner.invoke(app, ["add", "Task A"])
+    runner.invoke(app, ["add", "Task B"])
+    runner.invoke(app, ["update", "2", "--done"])
+
+    result = runner.invoke(app, ["list"])
+    assert result.exit_code == 0
+    assert "2 tasks (1 pending, 1 done)" in result.stdout
+
+
+def test_list_command_summary_footer_reflects_category_filter():
+    """The footer names the active category filter (#55)."""
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+    runner.invoke(app, ["add", "Task B", "--category", "personal"])
+
+    result = runner.invoke(app, ["list", "--category", "work"])
+    assert result.exit_code == 0
+    assert '1 tasks in "work" (1 pending, 0 done)' in result.stdout
+
+
+# --------------------------------------------------------------------------- #
+# #56: relative time in `show`
+# --------------------------------------------------------------------------- #
+
+
+def test_show_command_displays_relative_time_alongside_absolute():
+    """`show` displays a relative-time hint next to the absolute timestamp (#56)."""
+    runner.invoke(app, ["add", "Show me"])
+
+    result = runner.invoke(app, ["show", "1"])
+    assert result.exit_code == 0
+    assert "ago" in result.stdout or "just now" in result.stdout
+
+
+def test_show_command_updated_at_includes_relative_time():
+    """The Updated At row also carries a relative-time annotation (#56)."""
+    runner.invoke(app, ["add", "Show me"])
+    runner.invoke(app, ["update", "1", "-p", "3"])
+
+    result = runner.invoke(app, ["show", "1"])
+    assert result.exit_code == 0
+    assert result.stdout.count("ago") + result.stdout.count("just now") >= 2
+
+
+# --------------------------------------------------------------------------- #
+# #57: richer confirmations
+# --------------------------------------------------------------------------- #
+
+
+def test_add_command_confirmation_includes_full_context():
+    """Add's confirmation echoes priority/category so users skip a follow-up show."""
+    result = runner.invoke(
+        app, ["add", "Buy groceries", "--priority", "2", "--category", "work"]
+    )
+    assert result.exit_code == 0
+    assert "Buy groceries" in result.stdout
+    assert "Priority: 2" in result.stdout
+    assert "Category: work" in result.stdout
+
+
+def test_clean_command_no_completed_tasks_uses_warning_style():
+    """The 'nothing to clean' message is a yellow warning, not a plain notice."""
+    runner.invoke(app, ["add", "Keep me 1"])
+
+    result = runner.invoke(app, ["clean", "--force"])
+    assert result.exit_code == 0
+    assert "No completed tasks to delete." in result.stdout
+
+
+# --------------------------------------------------------------------------- #
+# #58: count command + empty states
+# --------------------------------------------------------------------------- #
+
+
+def test_count_command_all_tasks():
+    """`odot count` with no filters reports total/pending/done."""
+    runner.invoke(app, ["add", "Task A"])
+    runner.invoke(app, ["add", "Task B"])
+    runner.invoke(app, ["update", "2", "--done"])
+
+    result = runner.invoke(app, ["count"])
+    assert result.exit_code == 0
+    assert "2 tasks (1 pending, 1 done)" in result.stdout
+
+
+def test_count_command_todo_filter():
+    """`odot count --todo` collapses to a single pending count."""
+    runner.invoke(app, ["add", "Task A"])
+    runner.invoke(app, ["add", "Task B"])
+    runner.invoke(app, ["update", "2", "--done"])
+
+    result = runner.invoke(app, ["count", "--todo"])
+    assert result.exit_code == 0
+    assert "1 pending task" in result.stdout
+
+
+def test_count_command_done_and_category_filter():
+    """`odot count --done --category work` reads as 'N completed work task(s)'."""
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+    runner.invoke(app, ["add", "Task B", "--category", "work"])
+    runner.invoke(app, ["update", "1", "--done"])
+
+    result = runner.invoke(app, ["count", "--done", "--category", "work"])
+    assert result.exit_code == 0
+    assert "1 completed work task" in result.stdout
+
+
+def test_count_command_todo_filter_plural():
+    """`odot count --todo` pluralizes 'tasks' when the count isn't 1."""
+    runner.invoke(app, ["add", "Task A"])
+    runner.invoke(app, ["add", "Task B"])
+    runner.invoke(app, ["add", "Task C"])
+    runner.invoke(app, ["update", "3", "--done"])
+
+    result = runner.invoke(app, ["count", "--todo"])
+    assert result.exit_code == 0
+    assert "2 pending tasks" in result.stdout
+
+
+def test_count_command_empty_database():
+    """Counting an empty database reports zero without erroring."""
+    result = runner.invoke(app, ["count"])
+    assert result.exit_code == 0
+    assert "0 tasks (0 pending, 0 done)" in result.stdout
+
+
+def test_count_command_with_category_no_status_filter():
+    """`odot count --category work` reports the pending/done breakdown for work."""
+    runner.invoke(app, ["add", "Task A", "--category", "work"])
+
+    result = runner.invoke(app, ["count", "--category", "work"])
+    assert result.exit_code == 0
+    assert '1 tasks in "work" (1 pending, 0 done)' in result.stdout
+
+
+# --------------------------------------------------------------------------- #
+# #60: search highlight
+# --------------------------------------------------------------------------- #
+
+
+def test_search_command_highlights_match():
+    """Search results highlight the matched phrase using rich styling (#60)."""
+    runner.invoke(app, ["add", "Buy groceries for dinner"])
+
+    result = runner.invoke(app, ["search", "groceries"])
+    assert result.exit_code == 0
+    assert "groceries" in result.stdout
+
+
+def test_search_command_is_case_insensitive():
+    """Search matches regardless of case, per core's icontains-based lookup."""
+    runner.invoke(app, ["add", "Buy Groceries for dinner"])
+
+    result = runner.invoke(app, ["search", "groceries"])
+    assert result.exit_code == 0
+    assert "Groceries" in result.stdout
+
+
+def test_search_command_content_with_brackets_not_broken_by_markup():
+    """Content containing literal brackets renders safely (rich Text, not markup)."""
+    runner.invoke(app, ["add", "Buy [urgent] milk"])
+
+    result = runner.invoke(app, ["search", "milk"])
+    assert result.exit_code == 0
+    assert "[urgent]" in result.stdout
+
+
+# --------------------------------------------------------------------------- #
+# #61: bare invocation shows the task list
+# --------------------------------------------------------------------------- #
+
+
+def test_bare_invocation_shows_list_with_tasks():
+    """Running `odot` with no subcommand shows the task list (#61)."""
+    runner.invoke(app, ["add", "Task A"])
+
+    result = runner.invoke(app, [])
+    assert result.exit_code == 0
+    assert "Task A" in result.stdout
+    assert "Odot Tasks" in result.stdout
+
+
+def test_bare_invocation_shows_onboarding_on_empty_db(session):
+    """Running `odot` against an empty database shows the onboarding hint (#61)."""
+    result = runner.invoke(app, [])
+    assert result.exit_code == 0
+    assert "No tasks yet" in result.stdout
+
+
+def test_bare_invocation_still_initializes_session_lifecycle(tmp_path, monkeypatch):
+    """Bare invocation still auto-inits the DB and closes the session on exit."""
+    non_existent = tmp_path / "bare_db.sqlite"
+    monkeypatch.setattr("odot.database.get_db_path", lambda: non_existent)
+
+    result = runner.invoke(app, [])
+    assert result.exit_code == 0
+    assert "Database initialized" in result.stdout
+
+
+def test_help_still_works_with_invoke_without_command():
+    """`--help` continues to short-circuit to the help page (#61)."""
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "A minimalist CLI task manager." in result.stdout
+
+
+def test_explicit_subcommand_does_not_trigger_bare_list():
+    """Invoking a real subcommand does not also print the bare-invocation list."""
+    runner.invoke(app, ["add", "Task A"])
+
+    result = runner.invoke(app, ["show", "1"])
+    assert result.exit_code == 0
+    assert "Odot Tasks" not in result.stdout
