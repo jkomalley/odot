@@ -4,13 +4,21 @@ version = "0.3.0"
 description = "A minimalist, interactive command-line task manager built with Python."
 readme = "README.md"
 authors = [{ name = "Kyle O'Malley", email = "j.kyle.omalley@gmail.com" }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
+license = "MIT"
+keywords = ["task manager", "todo", "cli", "productivity", "sqlite"]
 classifiers = [
-    "Programming Language :: Python :: 3.10",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Utilities",
+    "Environment :: Console",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
 ]
 dependencies = [
     "questionary>=2.1.1",
@@ -19,25 +27,119 @@ dependencies = [
     "typer>=0.24.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/jkomalley/odot"
+Repository = "https://github.com/jkomalley/odot"
+Issues = "https://github.com/jkomalley/odot/issues"
+Changelog = "https://github.com/jkomalley/odot/blob/main/CHANGELOG.md"
+
 [project.scripts]
 odot = "odot.cli:main"
 
+[build-system]
+requires = ["uv_build>=0.10.2,<0.12.0"]
+build-backend = "uv_build"
+
 [dependency-groups]
 dev = [
-    "pytest>=9.0.2",
+    "hypothesis>=6.155.5",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
     "pytest-cov>=7.0.0",
-    "ruff>=0.15.1",
-    "ty>=0.0.16",
-    "pre-commit>=3.7.1",
-    "typer[all]>=0.24.1",
+    "ruff>=0.15.13",
+    "ty>=0.0.37",
+]
+
+# --------------------------------------------------------------------------- #
+# Ruff
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # --- Formatting / style clashes ---
+    "D203",   # one-blank-line-before-class (conflicts with D211)
+    "D213",   # multi-line-summary-second-line (conflicts with D212)
+    "D100",   # missing docstring in public module
+    "D104",   # missing docstring in public package
+    "D107",   # missing docstring in __init__ method
+
+    # --- Overly pedantic / noisy ---
+    "ANN401", # dynamically typed expressions (typing.Any) disallowed
+    "COM812", # missing trailing comma (conflicts with formatter)
+    "ISC001", # single-line implicit string concatenation (conflicts with formatter)
+    "FIX002", # line contains TODO
+    "TD002",  # missing author in TODO
+    "TD003",  # missing issue link in TODO
+    "ERA001", # found commented-out code
+    "TRY003", # avoid specifying long messages outside the exception class
+    "EM101",  # exception must not use a string literal
+    "EM102",  # exception must not use an f-string literal
+
+    # --- Pragmatic ignores ---
+    "S101",   # use of assert (needed in tests, fine in internal code)
+    "PLR2004",# magic value used in comparison
+    "PLR0913",# too many arguments — typer commands take many CLI params
+    "CPY001", # missing copyright notice
+    "FBT001", # boolean positional arg — typer flags and keyword-called APIs
+    "FBT002", # boolean positional default — same as above
 ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.pytest.ini_options]
-pythonpath = "src"
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "D",       # no docstring requirements in tests
+    "ANN",     # no type annotation requirements in tests
+    "SLF001",  # allow access to private members in tests
+    "INP001",  # tests dir is not an importable package
+    "ARG",     # unused args are common in monkeypatch stubs and fixtures
+    "PLC0415", # local imports are fine for scoping test helpers
+    "PLW1510", # subprocess.run without check= is intentional in exit-code tests
+]
+"src/odot/cli.py" = [
+    "T201",   # print() is a valid output mechanism for the CLI
+]
+"src/odot/core.py" = [
+    "T201",   # print() streams JSON export to stdout
+]
+"tests/test_cli_subprocess.py" = [
+    "S603",   # subprocess call with controlled input is safe here
+]
 
-[build-system]
-requires = ["uv_build>=0.10.2,<0.12.0"]
-build-backend = "uv_build"
+# --------------------------------------------------------------------------- #
+# ty
+# --------------------------------------------------------------------------- #
+[tool.ty.rules]
+possibly-missing-import = "warn"
+
+# --------------------------------------------------------------------------- #
+# Pytest
+# --------------------------------------------------------------------------- #
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+
+# --------------------------------------------------------------------------- #
+# Coverage
+# --------------------------------------------------------------------------- #
+[tool.coverage.run]
+source = ["odot"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+]

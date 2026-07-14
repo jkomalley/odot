@@ -22,7 +22,7 @@ def engine_fixture():
 
 @pytest.fixture(autouse=True)
 def setup_test_engine(engine):
-    """Replace the global database engine with the in-memory test engine for each test."""
+    """Swap the global engine for the in-memory test engine around each test."""
     from odot import database
 
     old_engine = database._engine
@@ -50,4 +50,4 @@ def client_session_fixture(session):
         yield session
 
     # We will use this fixture later in test_cli to override main.app dependency
-    yield get_session_override
+    return get_session_override

@@ -1,15 +1,16 @@
 """Typer CLI application."""
 
-import typer
-import questionary
-from rich.console import Console
-from rich.table import Table
-from rich.prompt import Prompt
-from typing_extensions import Annotated
 import importlib.metadata
-from sqlmodel import Session
-from typing import Any
+import json
 from pathlib import Path
+from typing import Annotated, Any
+
+import questionary
+import typer
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.table import Table
+from sqlmodel import Session
 
 from odot import core, database
 from odot.models import TaskCreate, TaskUpdate
@@ -27,7 +28,7 @@ def prompt_task_selection(db: Session, action: str) -> int:
     tasks = core.list_tasks(db=db)
     if not tasks:
         console.print("[yellow]No tasks available.[/yellow]")
-        raise typer.Exit()
+        raise typer.Exit
 
     choices = [
         questionary.Choice(
@@ -40,23 +41,23 @@ def prompt_task_selection(db: Session, action: str) -> int:
 
     if task_id is None:
         console.print("[yellow]Operation cancelled.[/yellow]")
-        raise typer.Exit()
+        raise typer.Exit
 
     return task_id
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     """Callback for version printing."""
     if value:
         version = importlib.metadata.version("odot")
         console.print(f"odot version: {version}")
-        raise typer.Exit()
+        raise typer.Exit
 
 
 @app.callback()
 def main_callback(
     ctx: typer.Context,
-    version: Annotated[
+    version: Annotated[  # noqa: ARG001  # eager option triggers version_callback
         bool | None,
         typer.Option(
             "--version",
@@ -66,7 +67,7 @@ def main_callback(
             help="Show the application's version and exit.",
         ),
     ] = None,
-):
+) -> None:
     """A minimalist CLI task manager."""
     if getattr(ctx, "obj", None) is None:
         db_path = database.get_db_path()
@@ -88,7 +89,7 @@ def add(
     category: Annotated[
         str, typer.Option("-c", "--category", help="Category label")
     ] = "general",
-):
+) -> None:
     """Add a new task."""
     if content is None:
         content = Prompt.ask("Task content")
@@ -103,7 +104,7 @@ def add(
 def show(
     ctx: typer.Context,
     task_id: Annotated[int | None, typer.Argument(help="Task ID to show")] = None,
-):
+) -> None:
     """Show details for a specific task."""
     db = ctx.obj
     if task_id is None:
@@ -157,7 +158,7 @@ def list_tasks(
             help="Reverse the sort order (descending)",
         ),
     ] = False,
-):
+) -> None:
     """List tasks, optionally filtered and sorted."""
     db = ctx.obj
 
@@ -197,7 +198,7 @@ def list_tasks(
 def search(
     ctx: typer.Context,
     phrase: Annotated[str, typer.Argument(help="Phrase to search for in task content")],
-):
+) -> None:
     """Search for tasks containing a specific phrase."""
     db = ctx.obj
     tasks = core.search_tasks(db=db, phrase=phrase)
@@ -239,13 +240,13 @@ def update(
         bool | None,
         typer.Option("-d/-t", "--done/--todo", help="Update completion status"),
     ] = None,
-):
+) -> None:
     """Update properties of an existing task."""
     db = ctx.obj
     if task_id is None:
         task_id = prompt_task_selection(db, "update")
 
-    # Map the explicitly provided arguments into our update explicitly checking local scope
+    # Collect only the arguments the user explicitly provided on the command line.
     provided_args = {
         "content": content,
         "priority": priority,
@@ -296,7 +297,7 @@ def done(
     task_id: Annotated[
         int | None, typer.Argument(help="Task ID to mark as done")
     ] = None,
-):
+) -> None:
     """Mark a task as done."""
     db = ctx.obj
     if task_id is None:
@@ -312,7 +313,7 @@ def done(
 def undo(
     ctx: typer.Context,
     task_id: Annotated[int | None, typer.Argument(help="Task ID to re-open")] = None,
-):
+) -> None:
     """Re-open a completed task."""
     db = ctx.obj
     if task_id is None:
@@ -331,7 +332,7 @@ def rm(
     force: Annotated[
         bool, typer.Option("-f", "--force", help="Force deletion without confirmation")
     ] = False,
-):
+) -> None:
     """Remove a task."""
     db = ctx.obj
     if task_id is None:
@@ -353,7 +354,7 @@ def clean(
     force: Annotated[
         bool, typer.Option("-f", "--force", help="Force deletion without confirmation")
     ] = False,
-):
+) -> None:
     """Delete all completed tasks from the database."""
     db = ctx.obj
 
@@ -375,7 +376,7 @@ def purge(
     force: Annotated[
         bool, typer.Option("-f", "--force", help="Force deletion without confirmation")
     ] = False,
-):
+) -> None:
     """Delete all tasks, completely resetting the database."""
     db = ctx.obj
 
@@ -406,7 +407,7 @@ def export_cmd(
     pretty: Annotated[
         bool, typer.Option("-p", "--pretty", help="Pretty print JSON output")
     ] = False,
-):
+) -> None:
     """Export tasks to a JSON file."""
     db = ctx.obj
 
@@ -427,13 +428,14 @@ def import_cmd(
     clear: Annotated[
         bool, typer.Option("--clear", help="Purge existing database before importing")
     ] = False,
-):
+) -> None:
     """Import tasks from a JSON file."""
     db = ctx.obj
 
     if clear:
         console.print(
-            "[bold red]WARNING: This will permanently delete ALL existing tasks before importing.[/bold red]"
+            "[bold red]WARNING: This will permanently delete ALL existing "
+            "tasks before importing.[/bold red]"
         )
         typer.confirm(
             "Are you incredibly sure you want to clear the database?", abort=True
@@ -442,9 +444,9 @@ def import_cmd(
     try:
         count = core.import_tasks(db=db, path=path, clear=clear)
         console.print(f"[green]Successfully imported {count} tasks from {path}[/green]")
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, KeyError, ValueError) as e:
         console.print(f"[bold red]Failed to import tasks: {e}[/bold red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command(name="report")
@@ -469,7 +471,7 @@ def report_cmd(
         bool,
         typer.Option("-r", "--reverse", help="Reverse the sort order (descending)"),
     ] = False,
-):
+) -> None:
     """Generate a Markdown or HTML report of tasks."""
     db = ctx.obj
 
@@ -499,19 +501,19 @@ def report_cmd(
     try:
         path.write_text(content, encoding="utf-8")
         console.print(f"[green]Successfully generated report at {path}[/green]")
-    except Exception as e:
+    except OSError as e:
         console.print(f"[bold red]Failed to write report: {e}[/bold red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command(name="init-db")
-def init_db():
+def init_db() -> None:
     """Initialize the database."""
     database.create_db_and_tables()
     console.print("[green]Database initialized successfully.[/green]")
 
 
-def main():
+def main() -> None:
     """CLI entrypoint."""
     app()
 

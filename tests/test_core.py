@@ -1,7 +1,7 @@
 """Unit tests for core logic CRUD operations."""
 
 from odot import core
-from odot.models import TaskCreate, TaskUpdate, Task
+from odot.models import Task, TaskCreate, TaskUpdate
 
 
 def test_add_task(session):
@@ -16,7 +16,7 @@ def test_add_task(session):
 
 
 def test_get_task(session):
-    """Test parsing an inserted task and validating None logic for missing ID targets."""
+    """Test parsing an inserted task and None handling for a missing ID."""
     # Add a task to fetch later
     task_data = TaskCreate(content="Dummy task")
     inserted = core.add_task(db=session, task_data=task_data)
@@ -113,6 +113,10 @@ def test_list_tasks(session):
     sort_category = core.list_tasks(db=session, sort_by="category")
     assert sort_category[0].category == "personal"
     assert sort_category[-1].category == "work"
+
+    # An unrecognized sort field is ignored and returns tasks unsorted.
+    unknown_sort = core.list_tasks(db=session, sort_by="nonexistent")
+    assert len(unknown_sort) == len(sort_category)
 
 
 def test_update_task(session):
@@ -249,7 +253,7 @@ def test_export_tasks(session, tmp_path):
     # Export all
     count = core.export_tasks(db=session, path=export_file)
     assert count == 3
-    with open(export_file, "r") as f:
+    with export_file.open() as f:
         data = json.load(f)
         assert len(data) == 3
 
@@ -257,7 +261,7 @@ def test_export_tasks(session, tmp_path):
         db=session, path=export_file, category="work", pretty=True
     )
     assert count == 2
-    with open(export_file, "r") as f:
+    with export_file.open() as f:
         data = json.load(f)
         assert len(data) == 2
         assert "Dummy task 1" in str(data)
@@ -288,7 +292,7 @@ def test_import_tasks(session, tmp_path):
         {"content": "Import 1", "priority": 3, "category": "work", "is_done": False},
         {"content": "Import 2", "priority": 1, "category": "personal", "is_done": True},
     ]
-    with open(import_file, "w") as f:
+    with import_file.open("w") as f:
         json.dump(payload, f)
 
     core.add_task(db=session, task_data=TaskCreate(content="Pre payload task"))
