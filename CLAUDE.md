@@ -30,7 +30,8 @@ The project uses a `src/odot/` layout with this module structure:
 - `models.py` — SQLModel schemas: `TaskBase` (shared fields: `content`, `priority` 1–3, `category`), `Task` (the `tasks` table, adds `id`, `is_done`, `created_at`, `updated_at`), `TaskCreate` (creation input), `TaskUpdate` (all fields optional, for partial updates).
 - `core.py` — Pure CRUD and business logic (add/get/list/search/update/delete tasks, bulk clean/purge, JSON import/export, Markdown/HTML report generation). Operates on a `Session` passed in by the caller; knows nothing about the CLI or presentation layer.
 - `database.py` — Engine, session, and path management: `get_db_path()` (honors `ODOT_DB_PATH`), `get_engine()` (lazily-created module-level singleton engine), `create_db_and_tables()`.
-- `cli.py` — Typer commands, Rich table/console output, Questionary interactive prompts (used when a required argument like a task ID is omitted).
+- `cli.py` — Typer commands, Rich console output, Questionary interactive prompts (used when a required argument like a task ID is omitted). Table and choice-label formatting is delegated to `_format.py`.
+- `_format.py` — Presentation helpers shared by the CLI: task-table rendering (`render_task_table`), priority display (`priority_display`), relative timestamps (`relative_time`), phrase highlighting (`highlight_match`), and interactive-choice labels (`build_task_choice_labels`).
 
 Key design decisions:
 
