@@ -35,7 +35,8 @@ responsibility:
 | `models.py` | SQLModel schemas: `TaskBase`, `Task` (the `tasks` table), `TaskCreate`, `TaskUpdate`. |
 | `core.py` | Pure CRUD and business logic. Takes a `Session`; knows nothing about the CLI. |
 | `database.py` | Engine/session/path management, including the `ODOT_DB_PATH` override and the engine singleton. |
-| `cli.py` | Typer commands, Rich output, Questionary interactive prompts. |
+| `cli.py` | Typer commands, Rich output, Questionary interactive prompts. Delegates table/label formatting to `_format.py`. |
+| `_format.py` | Presentation helpers shared by the CLI: task-table rendering, priority display, relative time, phrase highlighting. |
 
 ## Running checks
 
