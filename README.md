@@ -26,6 +26,7 @@
 - **Filtering & sorting** — slice your task list by status, category, priority, or date
 - **Import / export** — move tasks between machines with JSON
 - **Reports** — generate Markdown or HTML reports with one command
+- **Scripting-friendly** — machine-readable JSON output via a global `--json` flag
 - **Local first** — SQLite-backed, zero-configuration, works offline
 
 ## Installation
@@ -74,7 +75,22 @@ odot search "groceries"
 odot list --done                       # completed tasks only
 odot list -c work --todo               # open work tasks
 odot list --sort priority --reverse    # descending priority
+odot count --todo -c work              # count matches without a table
 ```
+
+### Scripting
+
+Add `--json` to emit machine-readable JSON instead of a table, ready to pipe
+into tools like [`jq`](https://jqlang.github.io/jq/):
+
+```bash
+odot list --json | jq '.[] | .content'   # list open task titles
+odot count --json                         # {"total": N, "pending": N, "done": N}
+```
+
+> `--json` applies to `list`, `show`, `add`, `update`, `done`, `undo`,
+> `search`, `count`, `rm`, `clean`, `purge`, and `import`. It is ignored by
+> `export` and `report`, which already produce their own artifacts.
 
 ### Import, Export & Reports
 
