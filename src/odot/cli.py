@@ -438,7 +438,7 @@ def count(
     ] = None,
     json_output: JsonOption = False,
 ) -> None:
-    """Print task counts without rendering a full table (#58)."""
+    """Print task counts without rendering a full table."""
     db = ctx.obj.session
     tasks = core.list_tasks(db=db, is_done=done, category=category)
 
