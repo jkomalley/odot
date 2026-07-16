@@ -144,7 +144,12 @@ def _cancelled() -> typer.Exit:
 
 
 def _select_task(labels: list[tuple[str, int]], action: str) -> int:
-    """Pick a task via a scrollable `questionary.select` menu (small lists)."""
+    """Pick a task via a scrollable `questionary.select` menu (small lists).
+
+    Uses `use_search_filter=True` to support type-to-filter, but must set
+    `use_jk_keys=False` because questionary does not allow both simultaneously
+    (j/k can be part of the search string).
+    """
     choices = [questionary.Choice(title=label, value=tid) for label, tid in labels]
     task_id = questionary.select(
         f"Select a task to {action}:",
