@@ -294,7 +294,7 @@ def generate_markdown_report(tasks: list[Task]) -> str:
     # Group by category (requires sorting by category first)
     sorted_tasks = sorted(tasks, key=lambda t: t.category)
     for category, category_tasks in groupby(sorted_tasks, key=lambda t: t.category):
-        lines.append(f"## {category.title()}")
+        lines.append(f"## {category}")
         for task in category_tasks:
             checkbox = "[x]" if task.is_done else "[ ]"
             lines.append(f"- {checkbox} {task.content} (Priority: {task.priority})")
@@ -361,7 +361,7 @@ def generate_html_report(tasks: list[Task]) -> str:
     else:
         sorted_tasks = sorted(tasks, key=lambda t: t.category)
         for category, category_tasks in groupby(sorted_tasks, key=lambda t: t.category):
-            html.append(f"    <h2>{escape(category.title())}</h2>")
+            html.append(f"    <h2>{escape(category)}</h2>")
             html.append("    <ul class='task-list'>")
             for task in category_tasks:
                 status_class = "done" if task.is_done else "pending"
