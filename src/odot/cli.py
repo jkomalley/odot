@@ -151,6 +151,7 @@ def _select_task(labels: list[tuple[str, int]], action: str) -> int:
         choices=choices,
         instruction="(arrow keys; type to filter)",
         use_search_filter=True,
+        use_jk_keys=False,
         show_selected=True,
     ).ask()
     if task_id is None:
