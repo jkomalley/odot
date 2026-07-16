@@ -95,6 +95,14 @@ def test_json_add_out_of_range_priority_errors_on_stderr():
     assert "priority" in result.stderr.lower()
 
 
+def test_add_command_empty_category_is_rejected():
+    """An explicit empty --category is a clean CLI error, not a blank category."""
+    result = runner.invoke(app, ["add", "Test Task", "--category", ""])
+    assert result.exit_code == 1
+    assert "ValidationError" not in result.stdout
+    assert "category" in result.stdout.lower()
+
+
 def test_prompt_task_selection_raises_when_no_tasks(session):
     """Selecting a task with an empty task list exits instead of prompting."""
     import typer
@@ -516,6 +524,15 @@ def test_json_update_out_of_range_priority_errors_on_stderr():
     assert result.stdout == ""
     assert "ValidationError" not in result.stderr
     assert "priority" in result.stderr.lower()
+
+
+def test_update_command_empty_category_is_rejected():
+    """An explicit empty --category on update is a clean CLI error."""
+    runner.invoke(app, ["add", "Task to update"])
+    result = runner.invoke(app, ["update", "1", "--category", ""])
+    assert result.exit_code == 1
+    assert "ValidationError" not in result.stdout
+    assert "category" in result.stdout.lower()
 
 
 def test_update_interactive_partial_content_only(monkeypatch):

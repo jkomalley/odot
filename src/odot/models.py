@@ -13,6 +13,8 @@ class TaskBase(SQLModel):
     category: str = Field(
         default="general",
         index=True,
+        min_length=1,
+        max_length=255,
         description="Free-text category label; matching is case-sensitive by design.",
     )
 
@@ -34,7 +36,7 @@ class TaskUpdate(SQLModel):
     priority: int | None = Field(
         default=None, ge=1, le=3, description="Priority from 1 to 3"
     )
-    category: str | None = Field(default=None)
+    category: str | None = Field(default=None, min_length=1, max_length=255)
     is_done: bool | None = Field(default=None)
 
 
