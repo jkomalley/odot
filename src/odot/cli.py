@@ -9,6 +9,7 @@ from typing import Annotated, Any
 
 import questionary
 import typer
+from pydantic import ValidationError
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
@@ -320,7 +321,14 @@ def add(
         content = Prompt.ask("Task content")
 
     db = ctx.obj.session
-    task_data = TaskCreate(content=content, priority=priority, category=category)
+    try:
+        task_data = TaskCreate(content=content, priority=priority, category=category)
+    except ValidationError as e:
+        message = f"Invalid task data: {e}"
+        if as_json:
+            raise json_error(message) from e
+        console.print(f"[red]{message}[/red]")
+        raise typer.Exit(code=1) from e
     task = core.add_task(db=db, task_data=task_data)
     if as_json:
         emit_json(task.model_dump(mode="json"))
@@ -630,7 +638,14 @@ def update(
         raise typer.Exit(code=1)
     before = _snapshot(existing)
 
-    update_data = TaskUpdate(**update_kwargs)
+    try:
+        update_data = TaskUpdate(**update_kwargs)
+    except ValidationError as e:
+        message = f"Invalid task data: {e}"
+        if as_json:
+            raise json_error(message) from e
+        console.print(f"[red]{message}[/red]")
+        raise typer.Exit(code=1) from e
     task = core.update_task(db=db, task_id=task_id, data=update_data)
     if not task:  # pragma: no cover - existing was just confirmed present above
         console.print(f"[red]Task {task_id} not found.[/red]")

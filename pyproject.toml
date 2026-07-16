@@ -21,6 +21,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "pydantic>=2.9.0",
     "questionary>=2.1.1",
     "rich>=14.3.2",
     "sqlmodel>=0.0.33",

@@ -78,6 +78,23 @@ def test_add_command_interactive_prompt():
     assert "Interactive task" in result.stdout
 
 
+def test_add_command_out_of_range_priority_reports_clean_error():
+    """An out-of-range --priority is a clean CLI error, not a raw traceback."""
+    result = runner.invoke(app, ["add", "Test Task", "--priority", "99"])
+    assert result.exit_code == 1
+    assert "ValidationError" not in result.stdout
+    assert "priority" in result.stdout.lower()
+
+
+def test_json_add_out_of_range_priority_errors_on_stderr():
+    """`add --json` with an invalid priority errors to stderr, not a traceback."""
+    result = runner.invoke(app, ["add", "Test Task", "--priority", "99", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "ValidationError" not in result.stderr
+    assert "priority" in result.stderr.lower()
+
+
 def test_prompt_task_selection_raises_when_no_tasks(session):
     """Selecting a task with an empty task list exits instead of prompting."""
     import typer
@@ -480,6 +497,25 @@ def test_update_command_missing_task():
     result = runner.invoke(app, ["update", "999", "--done"])
     assert result.exit_code == 1
     assert "Task 999 not found" in result.stdout
+
+
+def test_update_command_out_of_range_priority_reports_clean_error():
+    """An out-of-range --priority is a clean CLI error, not a raw traceback."""
+    runner.invoke(app, ["add", "Task to update"])
+    result = runner.invoke(app, ["update", "1", "--priority", "0"])
+    assert result.exit_code == 1
+    assert "ValidationError" not in result.stdout
+    assert "priority" in result.stdout.lower()
+
+
+def test_json_update_out_of_range_priority_errors_on_stderr():
+    """`update --json` with an invalid priority errors to stderr cleanly."""
+    runner.invoke(app, ["add", "Task to update"])
+    result = runner.invoke(app, ["update", "1", "--priority", "0", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "ValidationError" not in result.stderr
+    assert "priority" in result.stderr.lower()
 
 
 def test_update_interactive_partial_content_only(monkeypatch):

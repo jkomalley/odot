@@ -5,7 +5,6 @@ combinations and constraints are respected. This catches issues like
 conflicting parameters before code reaches production.
 """
 
-import pytest
 import questionary
 
 
