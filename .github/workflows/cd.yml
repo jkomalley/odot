@@ -87,8 +87,7 @@ jobs:
           git tag -a "v${VERSION}" -m "Release v${VERSION}"
           git push origin "v${VERSION}"
           # Publish directly (not a draft): the package is already live on PyPI
-          # by this step, so a draft would gate nothing. Notes are the curated
-          # CHANGELOG.md section extracted above, not raw commit/PR titles.
+          # by this step, so a draft would gate nothing.
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
             --notes-file release-notes.md \

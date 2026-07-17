@@ -89,6 +89,9 @@ you'd rather not install `just`.
 - Keep commits atomic and use [Conventional Commits](https://www.conventionalcommits.org/)
   (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `deps`).
 - Include tests for any new or changed behavior.
+- Add a bullet under `## [Unreleased]` in `CHANGELOG.md` for any user-facing
+  change, so the changelog is always release-ready (internal-only refactors,
+  CI, and docs changes are exempt).
 - Reference the issue a PR resolves with `Closes #N` so it closes automatically.
 - Make sure `just check` passes cleanly before you open the PR.
 - PRs are squash-merged.
@@ -101,7 +104,20 @@ Releases are published to PyPI automatically: the release workflow fires when
 CI passes on `main` and publishes whenever `pyproject.toml`'s version isn't
 already on PyPI. So a release is just a version bump merged to `main` — once
 it lands, the workflow builds the package, publishes it to PyPI, tags the
-commit, and drafts a GitHub release.
+commit, and publishes a GitHub release whose notes are the `CHANGELOG.md`
+section for that version.
+
+Because the notes come straight from `CHANGELOG.md`, keep it current as you go
+(see the changelog bullet under [Pull requests](#pull-requests)). Cutting a
+release is then a `chore: release vX.Y.Z` PR that, in one commit:
+
+- bumps the version (below),
+- renames `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and adds a fresh empty
+  `## [Unreleased]` above it, and
+- updates the compare links at the bottom of `CHANGELOG.md`.
+
+If the bumped version has no `CHANGELOG.md` section, the release workflow fails
+rather than shipping empty notes.
 
 Choose the bump from the changes since the **last release tag**, not just your
 latest work:
