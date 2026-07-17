@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-17
+
+### Changed
+
+- Task categories are normalized to lowercase and trimmed on write, so
+  differences in casing or surrounding whitespace can no longer create
+  duplicate categories. `--category` filters are matched case-insensitively
+  against the normalized values. Existing database rows are not migrated (#109).
+
+### Fixed
+
+- Interactive selection (`odot done`, `update`, or `rm` with no id) no longer
+  crashes from an incompatible `questionary` key/search-filter combination (#108).
+- Invalid `--priority` and other input-validation failures in `add`/`update`
+  now report a clean error instead of a raw traceback, and stay within the
+  `--json` output contract (#108).
+- An empty `--category ""` is rejected instead of being silently stored (#108).
+- Markdown and HTML report headers show the raw category, so categories that
+  differ only in case no longer render as identical, indistinguishable
+  headers (#108).
+
 ## [0.4.0] - 2026-07-14
 
 ### Added
@@ -98,7 +119,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved a duplicate auth header that caused the bump-version workflow to
   fail.
 
-[Unreleased]: https://github.com/jkomalley/odot/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/jkomalley/odot/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/jkomalley/odot/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/jkomalley/odot/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jkomalley/odot/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jkomalley/odot/compare/v0.2.0...v0.2.1
