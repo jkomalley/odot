@@ -30,7 +30,7 @@ class TaskBase(SQLModel):
         index=True,
         min_length=1,
         max_length=255,
-        description="Free-text category label; normalized to lowercase on write.",
+        description="Free-text category label; lowercased and trimmed on write.",
     )
 
 
