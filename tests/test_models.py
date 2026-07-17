@@ -47,6 +47,12 @@ def test_task_creation_invalid_category():
         TaskCreate(content="Valid content", category="")
 
 
+def test_task_create_normalizes_category_to_lowercase():
+    """Categories are lowercased on creation so casing can't drift (see #107)."""
+    assert TaskCreate(content="x", category="Work").category == "work"
+    assert TaskCreate(content="x", category="WORK").category == "work"
+
+
 def test_task_table_defaults():
     """Test default values for full Task table model."""
     task = Task(content="Database test")
@@ -105,6 +111,16 @@ def test_task_update_valid_partial_updates():
 
     done_only = TaskUpdate(is_done=False)
     assert done_only.is_done is False
+
+
+def test_task_update_normalizes_category_to_lowercase():
+    """Categories are lowercased on update so casing can't drift (see #107)."""
+    assert TaskUpdate(category="Work").category == "work"
+
+
+def test_task_update_category_none_passes_through():
+    """An explicit None category must not crash the normalizer (see #107)."""
+    assert TaskUpdate(category=None).category is None
 
 
 # --------------------------------------------------------------------------- #
