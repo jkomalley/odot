@@ -2,7 +2,22 @@
 
 from datetime import UTC, datetime
 
+from pydantic import field_validator
 from sqlmodel import Field, SQLModel
+
+
+def _normalize_category(value: object) -> object:
+    """Trim and lowercase a category on the write seam so casing can't drift.
+
+    Applied to ``TaskCreate``/``TaskUpdate`` (never the ``Task`` table model),
+    so new writes converge on one casing per category while legacy rows keep
+    whatever casing they already have. Surrounding whitespace is stripped for
+    the same reason casing is normalized: ``"work "`` and ``"work"`` should not
+    become distinct categories. A whitespace-only value collapses to ``""`` and
+    is then rejected by ``min_length=1``. Non-string values pass through so
+    pydantic raises its normal validation error instead of crashing here.
+    """
+    return value.strip().lower() if isinstance(value, str) else value
 
 
 class TaskBase(SQLModel):
@@ -15,7 +30,7 @@ class TaskBase(SQLModel):
         index=True,
         min_length=1,
         max_length=255,
-        description="Free-text category label; matching is case-sensitive by design.",
+        description="Free-text category label; lowercased and trimmed on write.",
     )
 
 
@@ -28,6 +43,12 @@ class TaskCreate(TaskBase):
     validation or fields can be added later without touching ``Task`` itself.
     """
 
+    @field_validator("category", mode="before")
+    @classmethod
+    def _lower_category(cls, value: object) -> object:
+        """Normalize the category to lowercase on creation."""
+        return _normalize_category(value)
+
 
 class TaskUpdate(SQLModel):
     """Model for updating a task. All fields are optional."""
@@ -38,6 +59,12 @@ class TaskUpdate(SQLModel):
     )
     category: str | None = Field(default=None, min_length=1, max_length=255)
     is_done: bool | None = Field(default=None)
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _lower_category(cls, value: object) -> object:
+        """Normalize the category to lowercase on update."""
+        return _normalize_category(value)
 
 
 class Task(TaskBase, table=True):
