@@ -74,8 +74,8 @@ def list_tasks(
     if is_done is not None:
         statement = statement.where(col(Task.is_done) == is_done)
     if category is not None:
-        # Filters are lowercased to match the normalized storage (see #107).
-        statement = statement.where(col(Task.category) == category.lower())
+        # Filters are trimmed and lowercased to match normalized storage (#107).
+        statement = statement.where(col(Task.category) == category.strip().lower())
 
     if sort_by:
         normalized = sort_by.lower()

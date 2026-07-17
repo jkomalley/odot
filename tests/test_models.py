@@ -53,6 +53,17 @@ def test_task_create_normalizes_category_to_lowercase():
     assert TaskCreate(content="x", category="WORK").category == "work"
 
 
+def test_task_create_strips_surrounding_whitespace_from_category():
+    """Surrounding whitespace is trimmed alongside lowercasing (see #107)."""
+    assert TaskCreate(content="x", category="  Work ").category == "work"
+
+
+def test_task_create_whitespace_only_category_is_rejected():
+    """A whitespace-only category collapses to empty and is rejected (see #107)."""
+    with pytest.raises(ValidationError):
+        TaskCreate(content="x", category="   ")
+
+
 def test_task_table_defaults():
     """Test default values for full Task table model."""
     task = Task(content="Database test")
@@ -116,6 +127,11 @@ def test_task_update_valid_partial_updates():
 def test_task_update_normalizes_category_to_lowercase():
     """Categories are lowercased on update so casing can't drift (see #107)."""
     assert TaskUpdate(category="Work").category == "work"
+
+
+def test_task_update_strips_surrounding_whitespace_from_category():
+    """Surrounding whitespace is trimmed on update alongside lowercasing (see #107)."""
+    assert TaskUpdate(category="  Work ").category == "work"
 
 
 def test_task_update_category_none_passes_through():

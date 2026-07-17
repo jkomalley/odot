@@ -36,7 +36,7 @@ The project uses a `src/odot/` layout with this module structure:
 Key design decisions:
 
 - **The typer/rich/questionary/sqlmodel stack is a deliberate divergence** from the owner's usual argparse/zero-dependency house standard. `odot` is an interactive TUI-style app, and this stack is the pragmatic choice for that — it isn't an oversight.
-- **Categories are free-text and normalized to lowercase on write.** There is no fixed enum; `Work`, `WORK`, and `work` all persist as `work`. Normalization lives on the `TaskCreate`/`TaskUpdate` input seam (not the `Task` table model); `--category` filters are lowercased before matching. Pre-normalization rows already in a user's database are not migrated.
+- **Categories are free-text and normalized to lowercase (and trimmed) on write.** There is no fixed enum; `Work`, `WORK`, `work`, and `" work "` all persist as `work`, and a whitespace-only category is rejected like an empty one. Normalization lives on the `TaskCreate`/`TaskUpdate` input seam (not the `Task` table model); `--category` filters are trimmed and lowercased before matching. Pre-normalization rows already in a user's database are not migrated.
 - **The database lives at `~/.odot/db.sqlite`** unless the `ODOT_DB_PATH` environment variable overrides it. The database and its parent directory are created automatically on first use.
 - **The engine is a process-level singleton** (`database._engine`), created lazily on first `get_engine()` call. Tests replace it with an in-memory engine (see Testing Notes).
 

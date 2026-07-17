@@ -7,14 +7,17 @@ from sqlmodel import Field, SQLModel
 
 
 def _normalize_category(value: object) -> object:
-    """Lowercase a category on the write seam so casing can't drift.
+    """Trim and lowercase a category on the write seam so casing can't drift.
 
     Applied to ``TaskCreate``/``TaskUpdate`` (never the ``Task`` table model),
     so new writes converge on one casing per category while legacy rows keep
-    whatever casing they already have. Non-string values pass through so
+    whatever casing they already have. Surrounding whitespace is stripped for
+    the same reason casing is normalized: ``"work "`` and ``"work"`` should not
+    become distinct categories. A whitespace-only value collapses to ``""`` and
+    is then rejected by ``min_length=1``. Non-string values pass through so
     pydantic raises its normal validation error instead of crashing here.
     """
-    return value.lower() if isinstance(value, str) else value
+    return value.strip().lower() if isinstance(value, str) else value
 
 
 class TaskBase(SQLModel):
