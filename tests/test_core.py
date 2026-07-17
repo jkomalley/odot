@@ -120,6 +120,14 @@ def test_list_tasks(session):
     assert sort_category[-1].category == "work"
 
 
+def test_list_tasks_category_filter_is_case_insensitive(session):
+    """A mixed-case filter matches the normalized lowercase storage (see #107)."""
+    core.add_task(db=session, task_data=TaskCreate(content="a", category="work"))
+    results = core.list_tasks(db=session, category="Work")
+    assert len(results) == 1
+    assert results[0].category == "work"
+
+
 def test_list_tasks_invalid_sort_raises(session):
     """Test that an invalid sort_by value raises ValueError (see #47, #50)."""
     core.add_task(db=session, task_data=TaskCreate(content="A", priority=2))
