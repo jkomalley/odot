@@ -62,14 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `done` and `undo` commands: mark a task complete with `odot done <id>`
-  (or interactively) and revert with `odot undo <id>`.
+  (or interactively) and revert with `odot undo <id>` (#84).
 - The database now auto-initializes on first use — no need to run
-  `odot init-db` before adding a task.
+  `odot init-db` before adding a task (#83).
 
 ### Fixed
 
 - Task content and category names are now HTML-escaped in generated reports,
-  preventing XSS in report output.
+  preventing XSS in report output (#81).
 
 ### Changed
 
@@ -80,44 +80,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Modernized the README: badges, cleaner layout, and updated usage examples.
+- Modernized the README: badges, cleaner layout, and updated usage examples (#65).
 
 ## [0.2.0] - 2026-03-06
 
 ### Added
 
-- Category filtering on the task list via `--category`.
-- `odot search <phrase>` to find tasks by keyword.
-- Clear commands to remove all tasks, or only completed ones.
-- JSON import/export via `odot export` and `odot import`.
-- List sorting by priority, date, category, or status via `--sort`.
-- An `updated_at` timestamp tracking when a task was last modified.
-- Markdown and HTML report generation.
+- Category filtering on the task list via `--category` (#33).
+- `odot search <phrase>` to find tasks by keyword (#34).
+- Clear commands to remove all tasks, or only completed ones (#35, #36).
+- JSON import/export via `odot export` and `odot import` (#37).
+- List sorting by priority, date, category, or status via `--sort` (#39).
+- An `updated_at` timestamp tracking when a task was last modified (#40).
+- Markdown and HTML report generation (#41).
 
 ### Fixed
 
 - Renamed the `--pending` flag to `--todo` to resolve a collision with `-p`
-  (priority).
+  (priority) (#29).
 - Replaced a leaky session generator with explicit `ctx.call_on_close`
-  cleanup.
+  cleanup (#30).
 
 ## [0.1.1] - 2026-03-01
 
 ### Added
 
 - `just lock-upgrade` now opens a pull request automatically when dependency
-  updates change the lockfile.
+  updates change the lockfile (#11, #12, #13).
 
 ### Changed
 
-- CI hardened to enforce branch protection against direct lockfile upgrades.
+- CI hardened to enforce branch protection against direct lockfile upgrades (#10).
 - Dependency updates: sqlmodel 0.0.37, ruff 0.15.4, ty 0.0.19, rich 14.3.3,
   actions/checkout v6, astral-sh/setup-uv v7.
 
 ### Fixed
 
 - Resolved a duplicate auth header that caused the bump-version workflow to
-  fail.
+  fail (#15).
 
 [Unreleased]: https://github.com/jkomalley/odot/compare/v0.5.0...HEAD
 [0.5.0]: https://github.com/jkomalley/odot/compare/v0.4.0...v0.5.0
