@@ -313,6 +313,22 @@ def test_list_command_category_filter():
     assert "Task C" in result.stdout
 
 
+def test_add_uppercase_category_is_found_by_lowercase_filter():
+    """An uppercase-added category is matched by a lowercase filter (see #107)."""
+    runner.invoke(app, ["add", "Buy milk", "--category", "Work"])
+    result = runner.invoke(app, ["list", "--category", "work"])
+    assert result.exit_code == 0
+    assert "Buy milk" in result.stdout
+
+
+def test_add_lowercase_category_is_found_by_uppercase_filter():
+    """A lowercase-added category is matched by an uppercase filter (see #107)."""
+    runner.invoke(app, ["add", "Buy milk", "--category", "work"])
+    result = runner.invoke(app, ["list", "--category", "Work"])
+    assert result.exit_code == 0
+    assert "Buy milk" in result.stdout
+
+
 def test_list_command_combined_filters():
     """Category and done filters can be combined."""
     runner.invoke(app, ["add", "Task A", "--category", "work"])
