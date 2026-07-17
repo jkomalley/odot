@@ -41,6 +41,12 @@ def test_task_creation_invalid_content():
         TaskCreate(content="a" * 256)  # Exceeds max length
 
 
+def test_task_creation_invalid_category():
+    """An empty category is rejected rather than silently persisted blank."""
+    with pytest.raises(ValidationError):
+        TaskCreate(content="Valid content", category="")
+
+
 def test_task_table_defaults():
     """Test default values for full Task table model."""
     task = Task(content="Database test")
