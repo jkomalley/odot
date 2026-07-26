@@ -84,6 +84,7 @@ ignore = [
     "S101",   # use of assert (needed in tests, fine in internal code)
     "PLR2004",# magic value used in comparison
     "PLR0913",# too many arguments — typer commands take many CLI params
+    "PLR0917",# too many positional arguments — same reason as PLR0913
     "CPY001", # missing copyright notice
     "FBT001", # boolean positional arg — typer flags and keyword-called APIs
     "FBT002", # boolean positional default — same as above
