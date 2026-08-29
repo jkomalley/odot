@@ -25,23 +25,23 @@ test-cov:
 
 # Check code formatting (for CI)
 format-check:
-    uv run ruff format --check .
+    uv run ruff format --check src/ tests/
 
 # Format code
 format:
-    uv run ruff format .
+    uv run ruff format src/ tests/
 
 # Run linter without auto-fixing (for CI)
 lint-check:
-    uv run ruff check .
+    uv run ruff check src/ tests/
 
 # Run linter and auto-fix issues
 lint:
-    uv run ruff check --fix .
+    uv run ruff check --fix src/ tests/
 
 # Run type checks
 typecheck:
-    uv run ty check
+    uv run ty check src/
 
 # Run all checks (format, lint, typecheck, tests with coverage)
 check: format-check lint-check typecheck test-cov
