@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-02
+
+### Changed
+
+- Build requirement floor raised to `uv_build>=0.12.0,<0.13.0`.
+
+### Internal
+
+- CI rewritten to the project-family standard: one matrixed `check` job over
+  Python 3.11-3.14 invoking `uv run` directly rather than through `just`,
+  dropping the `taiki-e/install-action@just` step. `fail-fast` disabled so
+  every leg reports; type checking pinned to 3.14.
+- Version bumping moved out of CI. `bump-version.yml` was removed: pull
+  requests opened with `GITHUB_TOKEN` never trigger workflows, so with required
+  status checks enabled its PRs could never satisfy them. Releases now start
+  with `just bump-version <part>` locally.
+- 100% coverage gate moved into pytest `addopts`, so it applies to every
+  invocation rather than only the CI recipe.
+- Dependency updates grouped by ecosystem, with a new `pre-commit` ecosystem,
+  and minor/patch updates merged automatically.
+- Actions pinned to exact versions across all workflows.
+
+No behavioural change to the library or CLI; no `src/` file was modified.
+
 ## [0.5.0] - 2026-07-17
 
 ### Changed
