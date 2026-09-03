@@ -18,7 +18,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Check version against PyPI
         id: check
@@ -63,7 +63,7 @@ jobs:
           echo "Release notes for v${VERSION}:"
           cat release-notes.md
 
-      - uses: astral-sh/setup-uv@v10.0.0
+      - uses: astral-sh/setup-uv@v10.0.1
         if: steps.check.outputs.publish == 'true'
         with:
           python-version: "3.14"
