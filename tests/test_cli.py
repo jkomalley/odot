@@ -73,9 +73,57 @@ def test_add_command():
 
 def test_add_command_interactive_prompt():
     """When content is omitted, add falls back to an interactive prompt."""
-    result = runner.invoke(app, ["add", "--priority", "2"], input="Interactive task\n")
+    result = runner.invoke(
+        app, ["add", "--priority", "2"], input="Interactive task\nwork\n"
+    )
     assert result.exit_code == 0
     assert "Interactive task" in result.stdout
+
+
+def test_add_command_interactive_prompt_asks_for_priority_and_category(monkeypatch):
+    """A fully bare `odot add` also prompts for priority and category."""
+
+    class MockSelectPriority:
+        def ask(self):
+            return "3"
+
+    monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectPriority())
+    result = runner.invoke(app, ["add"], input="Interactive task\nwork\n")
+    assert result.exit_code == 0
+    assert "Interactive task" in result.stdout
+    assert "Priority: 3" in result.stdout
+    assert "Category: work" in result.stdout
+
+
+def test_add_command_interactive_prompt_skips_category_prompt_when_flag_given(
+    monkeypatch,
+):
+    """An explicit --category alongside omitted content is not re-prompted."""
+
+    class MockSelectPriority:
+        def ask(self):
+            return "2"
+
+    monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectPriority())
+    result = runner.invoke(
+        app, ["add", "--category", "errand"], input="Interactive task\n"
+    )
+    assert result.exit_code == 0
+    assert "Category: errand" in result.stdout
+
+
+def test_add_command_interactive_prompt_defaults_when_priority_cancelled(monkeypatch):
+    """A cancelled priority select (None) falls back to the default priority."""
+
+    class MockSelectCancelled:
+        def ask(self):
+            return None
+
+    monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectCancelled())
+    result = runner.invoke(app, ["add"], input="Interactive task\n\n")
+    assert result.exit_code == 0
+    assert "Priority: 1" in result.stdout
+    assert "Category: general" in result.stdout
 
 
 def test_add_command_out_of_range_priority_reports_clean_error():

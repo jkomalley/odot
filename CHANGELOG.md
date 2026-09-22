@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `odot add` with no content argument now also prompts interactively for
+  priority and category, not just task content (`-p`/`-c` still skip their
+  respective prompt when given).
+
 ## [0.5.1] - 2026-09-02
 
 ### Changed

@@ -138,6 +138,18 @@ def require_force(force: bool, prompt: str, *, as_json: bool) -> None:
     typer.confirm(prompt, abort=True)
 
 
+def _prompt_priority(message: str, *, default: str | None = None) -> int | None:
+    """Prompt for a priority via a questionary select, parsing the result to int.
+
+    Shared by `add` and `_prompt_update_fields`, which both offer the same
+    1-3 choice set. Returns None if the prompt is cancelled/empty.
+    """
+    priority_str = questionary.select(
+        message, choices=["1", "2", "3"], default=default
+    ).ask()
+    return int(priority_str) if priority_str else None
+
+
 def _cancelled() -> typer.Exit:
     """Print the shared cancel notice and return an `Exit` for the caller."""
     console.print("[yellow]Operation cancelled.[/yellow]")
@@ -306,11 +318,11 @@ def add(
     ctx: typer.Context,
     content: Annotated[str | None, typer.Argument(help="Task content")] = None,
     priority: Annotated[
-        int, typer.Option("-p", "--priority", help="Priority from 1 to 3")
-    ] = 1,
+        int | None, typer.Option("-p", "--priority", help="Priority from 1 to 3")
+    ] = None,
     category: Annotated[
-        str, typer.Option("-c", "--category", help="Category label")
-    ] = "general",
+        str | None, typer.Option("-c", "--category", help="Category label")
+    ] = None,
     json_output: JsonOption = False,
 ) -> None:
     """Add a new task."""
@@ -319,6 +331,14 @@ def add(
         if as_json:
             raise json_error("Task content is required in --json mode.", code=2)
         content = Prompt.ask("Task content")
+        if priority is None:
+            priority = _prompt_priority("Priority:", default="1") or 1
+        if category is None:
+            category = Prompt.ask("Category", default="general")
+    if priority is None:
+        priority = 1
+    if category is None:
+        category = "general"
 
     db = ctx.obj.session
     try:
@@ -535,11 +555,9 @@ def _prompt_update_fields() -> dict[str, Any] | None:
     if "content" in choices:
         update_kwargs["content"] = Prompt.ask("New content")
     if "priority" in choices:
-        priority_str = questionary.select(
-            "New priority:", choices=["1", "2", "3"]
-        ).ask()
-        if priority_str:
-            update_kwargs["priority"] = int(priority_str)
+        priority = _prompt_priority("New priority:")
+        if priority is not None:
+            update_kwargs["priority"] = priority
     if "category" in choices:
         update_kwargs["category"] = Prompt.ask("New category")
     if "done" in choices:
