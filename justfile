@@ -58,7 +58,7 @@ lock-upgrade:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if ! git diff --quiet pyproject.toml uv.lock; then
+    if [ -n "$(git status --porcelain -- pyproject.toml uv.lock)" ]; then
         echo "pyproject.toml or uv.lock has uncommitted changes; aborting." >&2
         exit 1
     fi
