@@ -10,14 +10,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Install deps:** `just install` (`uv sync` + `uv run pre-commit install`)
 - **Run the CLI locally:** `just run --help` (`uv run odot --help`)
-- **Run tests:** `just test` (`uv run pytest`)
+- **Run tests:** `just test` (`uv run pytest --no-cov`)
 - **Run single test:** `uv run pytest tests/test_core.py::test_name -v`
 - **Test with coverage (100% gate):** `just test-cov` (`uv run pytest --cov --cov-fail-under=100`)
-- **Format:** `just format` (`uv run ruff format .`)
-- **Format check:** `just format-check` (`uv run ruff format --check .`)
-- **Lint (auto-fix):** `just lint` (`uv run ruff check --fix .`)
-- **Lint check:** `just lint-check` (`uv run ruff check .`)
-- **Type check:** `just typecheck` (`uv run ty check`)
+- **Format:** `just format` (`uv run ruff format src/ tests/`)
+- **Format check:** `just format-check` (`uv run ruff format --check src/ tests/`)
+- **Lint (auto-fix):** `just lint` (`uv run ruff check --fix src/ tests/`)
+- **Lint check:** `just lint-check` (`uv run ruff check src/ tests/`)
+- **Type check:** `just typecheck` (`uv run ty check src/`)
 - **Everything:** `just check` (format-check + lint-check + typecheck + test-cov)
 - **Clean caches:** `just clean`
 - **Upgrade lockfile:** `just lock-upgrade`
@@ -45,7 +45,7 @@ Key design decisions:
 - Every feature, fix, or other change gets its own branch and pull request — no direct commits to main.
 - Commits must be atomic and follow Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `deps`): one logical change per commit.
 - PRs that resolve an issue reference it with `Closes #N` so it closes automatically on merge.
-- PRs are squash-merged.
+- PRs are merged with a merge commit — never squashed or rebased.
 - **Keep `CHANGELOG.md` release-ready.** Any user-facing change adds a bullet under `## [Unreleased]` in the same PR (internal-only refactors, CI, test, and docs changes are exempt). Entries follow the existing Keep a Changelog style — grouped under `### Added`/`### Changed`/`### Fixed`/`### Removed`, one line each, ending with the PR ref `(#N)`.
 - **Releases are automated and notes come from the changelog — never hand-written commit dumps.** The CD workflow publishes to PyPI when a version bump lands on `main`, then publishes a GitHub release whose body is that version's `CHANGELOG.md` section (extracted between its `## [x.y.z]` heading and the next; it fails the release if the section is missing). Cutting a release is a `chore: release vX.Y.Z` PR that bumps the version and renames `## [Unreleased]` to `## [X.Y.Z] - <date>` (adding a fresh empty `## [Unreleased]` and updating the compare links). See CONTRIBUTING.md → Releasing.
 
