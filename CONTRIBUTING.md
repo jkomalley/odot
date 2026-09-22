@@ -55,7 +55,7 @@ just format-check  # ruff format --check
 just lint          # ruff check --fix
 just lint-check    # ruff check
 just typecheck     # ty check
-just test          # pytest
+just test          # pytest, no coverage gate
 just test-cov      # pytest with 100% coverage enforcement
 ```
 
