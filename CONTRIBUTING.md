@@ -94,7 +94,7 @@ you'd rather not install `just`.
   CI, and docs changes are exempt).
 - Reference the issue a PR resolves with `Closes #N` so it closes automatically.
 - Make sure `just check` passes cleanly before you open the PR.
-- PRs are squash-merged.
+- PRs are merged with a merge commit — never squashed or rebased.
 
 CI runs the full check suite against Python 3.11–3.14 on every pull request.
 
@@ -133,10 +133,11 @@ bump and apply it with `just`:
 | --- | --- | --- |
 | Any `feat:` | minor | `just bump-version minor` |
 | Only `fix:` / `docs:` / `chore:` | patch | `just bump-version patch` |
-| A breaking change (`feat!:`, `BREAKING CHANGE`) | major¹ | `just bump-version major` |
+| A breaking change (`feat!:`, `BREAKING CHANGE`) | minor (pre-1.0)¹ | `just bump-version minor` |
 
 ¹ While the project is pre-1.0, breaking changes are released as a **minor**
-bump per semver's 0.x convention.
+bump per semver's 0.x convention. Once the project reaches 1.0, breaking
+changes get `major` instead.
 
 Open the bump as its own PR. The `version-guard` CI job enforces this: it fails
 any release PR whose bump is too small for the commits since the last release
