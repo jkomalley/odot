@@ -121,7 +121,7 @@ uv sync
 ```
 
 ```bash
-just test          # run pytest
+just test          # run pytest, no coverage gate
 just test-cov      # enforce 100% coverage
 just check         # ruff + ty + tests
 ```
