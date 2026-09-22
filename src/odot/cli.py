@@ -306,11 +306,11 @@ def add(
     ctx: typer.Context,
     content: Annotated[str | None, typer.Argument(help="Task content")] = None,
     priority: Annotated[
-        int, typer.Option("-p", "--priority", help="Priority from 1 to 3")
-    ] = 1,
+        int | None, typer.Option("-p", "--priority", help="Priority from 1 to 3")
+    ] = None,
     category: Annotated[
-        str, typer.Option("-c", "--category", help="Category label")
-    ] = "general",
+        str | None, typer.Option("-c", "--category", help="Category label")
+    ] = None,
     json_output: JsonOption = False,
 ) -> None:
     """Add a new task."""
@@ -319,6 +319,17 @@ def add(
         if as_json:
             raise json_error("Task content is required in --json mode.", code=2)
         content = Prompt.ask("Task content")
+        if priority is None:
+            priority_str = questionary.select(
+                "Priority:", choices=["1", "2", "3"], default="1"
+            ).ask()
+            priority = int(priority_str) if priority_str else 1
+        if category is None:
+            category = Prompt.ask("Category", default="general")
+    if priority is None:
+        priority = 1
+    if category is None:
+        category = "general"
 
     db = ctx.obj.session
     try:
