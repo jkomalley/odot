@@ -10,12 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Install deps:** `just install` (`uv sync` + `uv run pre-commit install`)
 - **Run the CLI locally:** `just run --help` (`uv run odot --help`)
-- **Run tests:** `just test` (`uv run pytest`)
+- **Run tests:** `just test` (`uv run pytest --no-cov`)
 - **Run single test:** `uv run pytest tests/test_core.py::test_name -v`
 - **Test with coverage (100% gate):** `just test-cov` (`uv run pytest --cov --cov-fail-under=100`)
 - **Format:** `just format` (`uv run ruff format src/ tests/`)
 - **Format check:** `just format-check` (`uv run ruff format --check src/ tests/`)
-- **Lint (auto-fix):** `just lint` (`uv run ruff check --fix .`)
+- **Lint (auto-fix):** `just lint` (`uv run ruff check --fix src/ tests/`)
 - **Lint check:** `just lint-check` (`uv run ruff check src/ tests/`)
 - **Type check:** `just typecheck` (`uv run ty check src/`)
 - **Everything:** `just check` (format-check + lint-check + typecheck + test-cov)
