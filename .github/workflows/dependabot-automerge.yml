@@ -5,6 +5,8 @@ on:
     paths:
       - "pyproject.toml"
       - "uv.lock"
+      - ".github/workflows/**"
+      - ".pre-commit-config.yaml"
 
 permissions:
   contents: write
