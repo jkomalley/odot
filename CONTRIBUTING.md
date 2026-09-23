@@ -94,7 +94,7 @@ you'd rather not install `just`.
   CI, and docs changes are exempt).
 - Reference the issue a PR resolves with `Closes #N` so it closes automatically.
 - Make sure `just check` passes cleanly before you open the PR.
-- PRs are merged with a merge commit — never squashed or rebased.
+- **PRs are merged with a merge commit** — not squashed, not rebased.
 
 CI runs the full check suite against Python 3.11–3.14 on every pull request.
 
