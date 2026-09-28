@@ -34,8 +34,8 @@ class TestPriorityDisplay:
         assert "Low" in priority_display(1)
         assert "●" in priority_display(1)
 
-    def test_priority_2_is_med(self):
-        assert "Med" in priority_display(2)
+    def test_priority_2_is_medium(self):
+        assert "Medium" in priority_display(2)
         assert priority_display(2).count("●") == 2
 
     def test_priority_3_is_high(self):
@@ -57,7 +57,7 @@ class TestPriorityDisplayPlain:
 
     def test_plain_priority_labels(self):
         assert priority_display_plain(1) == "● Low"
-        assert priority_display_plain(2) == "●● Med"
+        assert priority_display_plain(2) == "●● Medium"
         assert priority_display_plain(3) == "●●● High"
 
     def test_unknown_priority_falls_back_to_number(self):

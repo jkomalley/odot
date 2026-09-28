@@ -1024,9 +1024,9 @@ def test_report_command_markdown(seeded_report_tasks, tmp_path):
     md_content = md_file.read_text()
     assert "# Odot Task Report" in md_content
     assert "## work" in md_content
-    assert "- [ ] Work task (Priority: 3)" in md_content
+    assert "- [ ] Work task (Priority: High)" in md_content
     assert "## personal" in md_content
-    assert "- [x] Personal task (Priority: 1)" in md_content
+    assert "- [x] Personal task (Priority: Low)" in md_content
 
 
 def test_report_command_html(seeded_report_tasks, tmp_path):

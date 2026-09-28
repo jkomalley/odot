@@ -11,23 +11,23 @@ from datetime import datetime, timedelta
 from rich.table import Table
 from rich.text import Text
 
-from odot.models import Task
+from odot.models import Priority, Task
 
 #: Rich markup for each priority level, paired with a short text label so the
 #: meaning survives even without color (e.g. piped output, colorblind users).
 _PRIORITY_DISPLAY = {
-    1: "[dim]● Low[/dim]",
-    2: "[yellow]●● Med[/yellow]",
-    3: "[bold red]●●● High[/bold red]",
+    Priority.LOW: "[dim]● Low[/dim]",
+    Priority.MEDIUM: "[yellow]●● Medium[/yellow]",
+    Priority.HIGH: "[bold red]●●● High[/bold red]",
 }
 
 #: Plain-text (no rich/ANSI markup) counterpart of `_PRIORITY_DISPLAY`, used by
 #: questionary choice labels — questionary titles are rendered verbatim and do
 #: not interpret rich markup, so the bracketed color tags would leak literally.
 _PRIORITY_DISPLAY_PLAIN = {
-    1: "● Low",
-    2: "●● Med",
-    3: "●●● High",
+    Priority.LOW: "● Low",
+    Priority.MEDIUM: "●● Medium",
+    Priority.HIGH: "●●● High",
 }
 
 #: Max content width in an interactive-selection label before truncation; the
@@ -62,7 +62,7 @@ def priority_display_plain(priority: int) -> str:
             its bare string form).
 
     Returns:
-        A plain string such as "●● Med", or the bare number if out of range.
+        A plain string such as "●● Medium", or the bare number if out of range.
     """
     return _PRIORITY_DISPLAY_PLAIN.get(priority, str(priority))
 
