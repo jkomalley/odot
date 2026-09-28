@@ -39,3 +39,18 @@ def test_autocomplete_task_questionary_parameters_valid():
         match_middle=True,
     )
     assert q is not None
+
+
+def test_prompt_priority_questionary_parameters_valid(monkeypatch):
+    """Ensure the real questionary.select() accepts _prompt_priority's arguments.
+
+    Only `.ask()` is stubbed (it needs a TTY), so the Choice list and the
+    Choice-valued default go through questionary's own validation, which
+    raises if the default is not one of the choices.
+    """
+    from odot.cli import _prompt_priority
+    from odot.models import Priority
+
+    monkeypatch.setattr(questionary.Question, "ask", lambda self: Priority.HIGH)
+    assert _prompt_priority("Priority:", default=Priority.LOW) is Priority.HIGH
+    assert _prompt_priority("New priority:") is Priority.HIGH

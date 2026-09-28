@@ -62,7 +62,7 @@ class Priority(IntEnum):
             value = int(text) if text.isdecimal() else text
         if isinstance(value, int) and value in cls._value2member_map_:
             return cls(value)
-        msg = f"Invalid priority {value!r}: must be low, medium, or high."
+        msg = f"{value!r} is not low, medium, or high."
         raise ValueError(msg)
 
 

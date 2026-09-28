@@ -6,6 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from odot.cli import app
+from odot.models import Priority
 
 runner = CliRunner()
 
@@ -85,13 +86,13 @@ def test_add_command_interactive_prompt_asks_for_priority_and_category(monkeypat
 
     class MockSelectPriority:
         def ask(self):
-            return "3"
+            return Priority.HIGH
 
     monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectPriority())
     result = runner.invoke(app, ["add"], input="Interactive task\nwork\n")
     assert result.exit_code == 0
     assert "Interactive task" in result.stdout
-    assert "Priority: 3" in result.stdout
+    assert "Priority: High" in result.stdout
     assert "Category: work" in result.stdout
 
 
@@ -102,7 +103,7 @@ def test_add_command_interactive_prompt_skips_category_prompt_when_flag_given(
 
     class MockSelectPriority:
         def ask(self):
-            return "2"
+            return Priority.MEDIUM
 
     monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectPriority())
     result = runner.invoke(
@@ -122,22 +123,64 @@ def test_add_command_interactive_prompt_defaults_when_priority_cancelled(monkeyp
     monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectCancelled())
     result = runner.invoke(app, ["add"], input="Interactive task\n\n")
     assert result.exit_code == 0
-    assert "Priority: 1" in result.stdout
+    assert "Priority: Low" in result.stdout
     assert "Category: general" in result.stdout
+
+
+def test_add_command_accepts_priority_name():
+    """`add -p` takes a priority name, case-insensitively (#159)."""
+    result = runner.invoke(app, ["add", "Test Task", "-p", "High", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["priority"] == 3
+
+
+def test_add_command_still_accepts_legacy_numeric_priority():
+    """Scripts written against the old numeric flag keep working."""
+    result = runner.invoke(app, ["add", "Test Task", "-p", "2", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["priority"] == 2
+
+
+def test_add_command_unknown_priority_name_is_usage_error():
+    """An unknown priority name is a usage error that lists the valid names."""
+    result = runner.invoke(app, ["add", "Test Task", "-p", "urgent"])
+    assert result.exit_code == 2
+    assert "low, medium, or high" in result.output
+
+
+def test_add_command_priority_prompt_offers_named_levels(monkeypatch):
+    """The interactive priority select shows names, defaulting to Low."""
+    captured = {}
+
+    class MockSelect:
+        def ask(self):
+            return Priority.MEDIUM
+
+    def fake_select(message, **kwargs):
+        captured.update(kwargs)
+        return MockSelect()
+
+    monkeypatch.setattr("questionary.select", fake_select)
+    result = runner.invoke(app, ["add"], input="Interactive task\nwork\n")
+    assert result.exit_code == 0
+    assert [c.title for c in captured["choices"]] == ["Low", "Medium", "High"]
+    assert [c.value for c in captured["choices"]] == list(Priority)
+    assert captured["default"].value is Priority.LOW
+    assert "Priority: Medium" in result.stdout
 
 
 def test_add_command_out_of_range_priority_reports_clean_error():
     """An out-of-range --priority is a clean CLI error, not a raw traceback."""
     result = runner.invoke(app, ["add", "Test Task", "--priority", "99"])
-    assert result.exit_code == 1
-    assert "ValidationError" not in result.stdout
-    assert "priority" in result.stdout.lower()
+    assert result.exit_code == 2
+    assert "ValidationError" not in result.output
+    assert "low, medium, or high" in result.output
 
 
 def test_json_add_out_of_range_priority_errors_on_stderr():
     """`add --json` with an invalid priority errors to stderr, not a traceback."""
     result = runner.invoke(app, ["add", "Test Task", "--priority", "99", "--json"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stdout == ""
     assert "ValidationError" not in result.stderr
     assert "priority" in result.stderr.lower()
@@ -306,6 +349,15 @@ def test_show_command():
     assert "Show me" in result.stdout
     assert "Pending" in result.stdout
     assert "Updated At" not in result.stdout
+
+
+def test_show_command_displays_priority_name():
+    """`show` renders the stored priority as its name, not the raw int."""
+    runner.invoke(app, ["add", "Show me", "-p", "medium"])
+
+    result = runner.invoke(app, ["show", "1"])
+    assert result.exit_code == 0
+    assert "Medium" in result.stdout
 
 
 def test_show_command_after_update_includes_updated_at():
@@ -478,6 +530,25 @@ def test_search_command_no_matches():
     assert "No tasks matching 'nonexistent' found." in result.stdout
 
 
+def test_update_command_bad_priority_fails_before_task_prompt(monkeypatch):
+    """A bad -p is rejected before the interactive task picker opens."""
+
+    def fail_if_prompted(db, action):
+        raise AssertionError("task prompt should not run")
+
+    monkeypatch.setattr("odot.cli.prompt_task_selection", fail_if_prompted)
+    result = runner.invoke(app, ["update", "-p", "urgent"])
+    assert result.exit_code == 2
+
+
+def test_update_command_accepts_priority_name():
+    """`update -p` takes a priority name, case-insensitively (#159)."""
+    runner.invoke(app, ["add", "Task to update", "-p", "high"])
+    result = runner.invoke(app, ["update", "1", "-p", "LOW", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["priority"] == 1
+
+
 def test_update_command_sets_explicit_fields():
     """Explicit --content/--done/--priority flags update those fields."""
     runner.invoke(app, ["add", "Old Task"])
@@ -489,7 +560,7 @@ def test_update_command_sets_explicit_fields():
     assert "Updated task #1" in result.stdout
     # Diff lines (#57) echo the specific fields that changed.
     assert "content: Old Task → New Task" in result.stdout
-    assert "priority: 1 → 2" in result.stdout
+    assert "priority: Low → Medium" in result.stdout
     assert "status: Pending → Done" in result.stdout
 
     verify = runner.invoke(app, ["show", "1"])
@@ -534,7 +605,7 @@ def test_update_command_interactive_all_fields(monkeypatch):
 
     class MockSelectPriority:
         def ask(self):
-            return "3"
+            return Priority.HIGH
 
     class MockConfirmDone:
         def ask(self):
@@ -550,7 +621,7 @@ def test_update_command_interactive_all_fields(monkeypatch):
 
     verify = runner.invoke(app, ["show", "1"])
     assert "Interactively Updated" in verify.stdout
-    assert "3" in verify.stdout
+    assert "High" in verify.stdout
     assert "Done" in verify.stdout
 
 
@@ -575,19 +646,36 @@ def test_update_command_out_of_range_priority_reports_clean_error():
     """An out-of-range --priority is a clean CLI error, not a raw traceback."""
     runner.invoke(app, ["add", "Task to update"])
     result = runner.invoke(app, ["update", "1", "--priority", "0"])
-    assert result.exit_code == 1
-    assert "ValidationError" not in result.stdout
-    assert "priority" in result.stdout.lower()
+    assert result.exit_code == 2
+    assert "ValidationError" not in result.output
+    assert "low, medium, or high" in result.output
 
 
 def test_json_update_out_of_range_priority_errors_on_stderr():
     """`update --json` with an invalid priority errors to stderr cleanly."""
     runner.invoke(app, ["add", "Task to update"])
     result = runner.invoke(app, ["update", "1", "--priority", "0", "--json"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stdout == ""
     assert "ValidationError" not in result.stderr
     assert "priority" in result.stderr.lower()
+
+
+def test_json_add_invalid_task_data_errors_on_stderr():
+    """`add --json` with data the model rejects errors to stderr (exit 1)."""
+    result = runner.invoke(app, ["add", "Test Task", "-c", "   ", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "category" in result.stderr.lower()
+
+
+def test_json_update_invalid_task_data_errors_on_stderr():
+    """`update --json` with data the model rejects errors to stderr (exit 1)."""
+    runner.invoke(app, ["add", "Task to update"])
+    result = runner.invoke(app, ["update", "1", "-c", "   ", "--json"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "category" in result.stderr.lower()
 
 
 def test_update_command_empty_category_is_rejected():
@@ -1134,7 +1222,7 @@ def test_add_command_confirmation_includes_full_context():
     )
     assert result.exit_code == 0
     assert "Buy groceries" in result.stdout
-    assert "Priority: 2" in result.stdout
+    assert "Priority: Medium" in result.stdout
     assert "Category: work" in result.stdout
 
 
