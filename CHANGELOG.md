@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-28
+
 ### Added
 
 - Interactive `odot add` and `odot update` offer the categories already in use
@@ -16,8 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Pressing Ctrl-C at the priority prompt of interactive `odot add` now cancels
-  the add instead of saving the task as Low priority. (#165)
 - Priority is now entered and shown as Low/Medium/High: `-p`/`--priority`
   takes `low`, `medium`, or `high` (any case), the interactive prompt offers
   the names, and `show`, the add confirmation, the update diff, and reports
@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   integer. An unknown level is now a usage error (exit 2). (#164)
 - The priority label in `list`, `search`, and task-selection menus reads
   `Medium` instead of `Med`. (#164)
+- Pressing Ctrl-C at the priority prompt of interactive `odot add` now cancels
+  the add instead of saving the task as Low priority. (#165)
 
 ## [0.6.0] - 2026-09-22
 
@@ -170,7 +172,8 @@ No behavioural change to the library or CLI; no `src/` file was modified.
 - Resolved a duplicate auth header that caused the bump-version workflow to
   fail (#15).
 
-[Unreleased]: https://github.com/jkomalley/odot/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/jkomalley/odot/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/jkomalley/odot/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/jkomalley/odot/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/jkomalley/odot/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/jkomalley/odot/compare/v0.4.0...v0.5.0
