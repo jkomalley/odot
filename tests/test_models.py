@@ -207,7 +207,9 @@ def test_priority_parse_accepts_names_and_numbers(raw, expected):
     assert Priority.parse(raw) is expected
 
 
-@pytest.mark.parametrize("raw", ["urgent", "", "0", "4", 0, 4, 2.5, None])
+@pytest.mark.parametrize(
+    "raw", ["urgent", "", "0", "4", "\u0662", "\uff12", 0, 4, 2.5, None]
+)
 def test_priority_parse_rejects_unknown_values(raw):
     """Anything else raises, and the message advertises the names only."""
     with pytest.raises(ValueError, match="low, medium, or high"):

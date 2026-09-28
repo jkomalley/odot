@@ -59,7 +59,8 @@ class Priority(IntEnum):
             text = value.strip()
             if text.upper() in cls.__members__:
                 return cls[text.upper()]
-            value = int(text) if text.isdecimal() else text
+            # ASCII only: isdecimal() alone also admits e.g. Arabic-Indic digits.
+            value = int(text) if text.isascii() and text.isdecimal() else text
         if isinstance(value, int) and value in cls._value2member_map_:
             return cls(value)
         msg = f"{value!r} is not low, medium, or high."
