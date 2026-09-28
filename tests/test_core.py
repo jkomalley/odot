@@ -296,6 +296,14 @@ def test_list_categories_collapses_legacy_casing(session):
     assert core.list_categories(db=session) == ["work"]
 
 
+def test_list_categories_skips_blank_legacy_rows(session):
+    """A legacy whitespace-only category is not offered as a blank choice."""
+    session.add(Task(content="legacy", category="   "))
+    session.add(Task(content="new", category="work"))
+    session.commit()
+    assert core.list_categories(db=session) == ["work"]
+
+
 def test_export_tasks(session, tmp_path):
     """Test JSON exporting with filtering."""
     core.add_task(
