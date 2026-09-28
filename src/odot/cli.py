@@ -603,7 +603,9 @@ def search(
     console.print(table)
 
 
-def _prompt_update_fields(db: Session) -> dict[str, Any] | None:
+def _prompt_update_fields(
+    db: Session, *, current_category: str
+) -> dict[str, Any] | None:
     """Interactively collect update fields via a questionary checkbox form.
 
     Split out of `update` to keep that command's branch count under the
@@ -611,6 +613,8 @@ def _prompt_update_fields(db: Session) -> dict[str, Any] | None:
 
     Args:
         db: Session used to offer the categories already in use.
+        current_category: The task's category, preselected in the category
+            select so pressing Enter keeps it instead of moving the task.
 
     Returns:
         A kwargs dict suitable for `TaskUpdate(**kwargs)`, which may be
@@ -634,7 +638,7 @@ def _prompt_update_fields(db: Session) -> dict[str, Any] | None:
         if priority is not None:
             update_kwargs["priority"] = priority
     if "category" in choices:
-        category = _prompt_category(db, "New category:")
+        category = _prompt_category(db, "New category:", default=current_category)
         if category is not None:
             update_kwargs["category"] = category
     if "done" in choices:
@@ -711,6 +715,19 @@ def update(
     level = _parse_priority_option(priority, as_json=as_json)
     task_id = require_task_id(ctx, task_id, "update", as_json=as_json)
 
+    # Look the task up first (rather than only checking update_task's return)
+    # so we can report not-found before any field prompt, offer the current
+    # category as the prompt default, and snapshot the before-state
+    # for the diff (#57) — snapshotting the same live update_task result
+    # would be a no-op since SQLAlchemy's identity map mutates it in place.
+    existing = core.get_task(db=db, task_id=task_id)
+    if not existing:
+        if as_json:
+            raise json_error(f"Task {task_id} not found.")
+        console.print(f"[red]Task {task_id} not found.[/red]")
+        raise typer.Exit(code=1)
+    before = _snapshot(existing)
+
     # Collect only the arguments the user explicitly provided on the command line.
     provided_args = {
         "content": content,
@@ -729,23 +746,11 @@ def update(
             raise json_error(
                 "At least one field flag is required in --json mode.", code=2
             )
-        prompted = _prompt_update_fields(db)
+        prompted = _prompt_update_fields(db, current_category=existing.category)
         if prompted is None:
             console.print("[yellow]No updates provided.[/yellow]")
             raise typer.Exit(code=1)
         update_kwargs = prompted
-
-    # Look the task up first (rather than only checking update_task's return)
-    # so we can both report not-found up front and snapshot the before-state
-    # for the diff (#57) — snapshotting the same live update_task result
-    # would be a no-op since SQLAlchemy's identity map mutates it in place.
-    existing = core.get_task(db=db, task_id=task_id)
-    if not existing:
-        if as_json:
-            raise json_error(f"Task {task_id} not found.")
-        console.print(f"[red]Task {task_id} not found.[/red]")
-        raise typer.Exit(code=1)
-    before = _snapshot(existing)
 
     try:
         update_data = TaskUpdate(**update_kwargs)

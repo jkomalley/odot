@@ -840,6 +840,26 @@ def test_update_interactive_category_picks_existing(monkeypatch):
     assert "category: work → home" in result.stdout
 
 
+def test_update_interactive_category_preselects_current(monkeypatch):
+    """The category select starts on the task's current category, not the first."""
+    runner.invoke(app, ["add", "Move me", "-c", "work"])
+    runner.invoke(app, ["add", "Other", "-c", "errands"])
+
+    class MockCategoryOnlyCheckbox:
+        def ask(self):
+            return ["category"]
+
+    captured = {}
+    monkeypatch.setattr(
+        "questionary.checkbox", lambda *a, **k: MockCategoryOnlyCheckbox()
+    )
+    monkeypatch.setattr(
+        "questionary.select", select_by_message({"New category:": "work"}, captured)
+    )
+    runner.invoke(app, ["update", "1"])
+    assert captured["New category:"]["default"] == "work"
+
+
 def test_update_interactive_blank_new_category_name_is_skipped(monkeypatch):
     """Enter at the 'New category name' prompt leaves the category unchanged."""
     from odot.cli import _NEW_CATEGORY
@@ -860,6 +880,18 @@ def test_update_interactive_blank_new_category_name_is_skipped(monkeypatch):
     assert result.exit_code == 0
     assert "Invalid task data" not in result.stdout
     assert "category:" not in result.stdout
+
+
+def test_update_interactive_missing_task_reported_before_prompting(monkeypatch):
+    """A missing task is reported before any field prompt is shown."""
+
+    def fail_if_prompted(*args, **kwargs):
+        raise AssertionError("field prompt should not run")
+
+    monkeypatch.setattr("questionary.checkbox", fail_if_prompted)
+    result = runner.invoke(app, ["update", "999"])
+    assert result.exit_code == 1
+    assert "Task 999 not found" in result.stdout
 
 
 def test_update_interactive_cancelled_category_is_skipped(monkeypatch):
