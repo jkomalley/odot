@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Interactive `odot add` and `odot update` offer the categories already in use
+  in a menu, plus a "New category…" entry for typing a new one. (#165)
 - `odot import` accepts priority names (`"priority": "high"`) as well as the
   integers `export` writes. (#164)
 
