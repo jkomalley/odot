@@ -363,6 +363,31 @@ def test_import_tasks(session, tmp_path):
     assert len(tasks_after_clear) == 2
 
 
+def test_import_tasks_accepts_priority_names(session, tmp_path):
+    """Hand-written JSON may use priority names; they persist as ints (#159)."""
+    import_file = tmp_path / "import.json"
+    payload = [
+        {"content": "Named", "priority": "High"},
+        {"content": "Numbered", "priority": 2},
+    ]
+    import_file.write_text(json.dumps(payload))
+
+    core.import_tasks(db=session, path=str(import_file))
+
+    priorities = {t.content: t.priority for t in core.list_tasks(db=session)}
+    assert priorities == {"Named": 3, "Numbered": 2}
+
+
+def test_export_tasks_emits_integer_priority(session, tmp_path):
+    """Export keeps the stable integer contract, so it round-trips with import."""
+    core.add_task(db=session, task_data=TaskCreate(content="x", priority="medium"))
+    export_file = tmp_path / "export.json"
+
+    core.export_tasks(db=session, path=export_file)
+
+    assert json.loads(export_file.read_text())[0]["priority"] == 2
+
+
 def test_import_tasks_missing_content(session, tmp_path):
     """Test that importing JSON with a missing content key raises KeyError."""
     bad_file = tmp_path / "bad_import.json"
@@ -420,9 +445,9 @@ def test_generate_markdown_report():
 
     assert "# Odot Task Report" in report
     assert "## personal" in report
-    assert "- [x] Personal Task (Priority: 1)" in report
+    assert "- [x] Personal Task (Priority: Low)" in report
     assert "## work" in report
-    assert "- [ ] Work Task (Priority: 3)" in report
+    assert "- [ ] Work Task (Priority: High)" in report
 
     empty_report = core.generate_markdown_report([])
     assert "No tasks found." in empty_report
@@ -459,6 +484,8 @@ def test_generate_html_report():
     assert "<h2>work</h2>" in report
     assert "Personal Task" in report
     assert "Work Task" in report
+    assert "Priority: High" in report
+    assert "Priority: Low" in report
     assert "class='task-item done'" in report
     assert "class='task-item pending'" in report
 

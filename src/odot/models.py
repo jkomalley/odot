@@ -1,6 +1,8 @@
 """Models for odot."""
 
 from datetime import UTC, datetime
+from enum import IntEnum
+from typing import Self
 
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
@@ -18,6 +20,72 @@ def _normalize_category(value: object) -> object:
     pydantic raises its normal validation error instead of crashing here.
     """
     return value.strip().lower() if isinstance(value, str) else value
+
+
+class Priority(IntEnum):
+    """Task priority levels, stored in the database as their int values.
+
+    The column stays a plain ``INTEGER`` (see ``TaskBase.priority``) rather than
+    a SQLAlchemy ``Enum``, which would persist member *names* and break existing
+    rows; this enum is only the vocabulary for input parsing and display.
+    """
+
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+
+    @property
+    def label(self) -> str:
+        """Human-facing name, e.g. ``"Medium"``."""
+        return self.name.capitalize()
+
+    @classmethod
+    def parse(cls, value: object) -> Self:
+        """Parse a priority name (any case) or a legacy 1-3 number.
+
+        Numbers are still accepted so scripts written against the old numeric
+        ``-p`` flag keep working, but only the names are advertised.
+
+        Args:
+            value: A ``Priority``, an int, a numeric string, or a name.
+
+        Returns:
+            The matching ``Priority`` member.
+
+        Raises:
+            ValueError: If ``value`` names no priority level.
+        """
+        if isinstance(value, str):
+            text = value.strip()
+            if text.upper() in cls.__members__:
+                return cls[text.upper()]
+            # ASCII only: isdecimal() alone also admits e.g. Arabic-Indic digits.
+            value = int(text) if text.isascii() and text.isdecimal() else text
+        if isinstance(value, int) and value in cls._value2member_map_:
+            return cls(value)
+        msg = f"{value!r} is not low, medium, or high."
+        raise ValueError(msg)
+
+
+def priority_name(priority: int) -> str:
+    """Render a stored priority as its label, e.g. ``2`` -> ``"Medium"``.
+
+    Out-of-range values fall back to the bare number so malformed rows never
+    crash rendering.
+    """
+    try:
+        return Priority(priority).label
+    except ValueError:
+        return str(priority)
+
+
+def _parse_priority_name(value: object) -> object:
+    """Convert a priority name to its stored int on the write seam.
+
+    Only strings are converted; other values pass through so pydantic's normal
+    ``ge``/``le`` and type errors still fire.
+    """
+    return int(Priority.parse(value)) if isinstance(value, str) else value
 
 
 class TaskBase(SQLModel):
@@ -49,6 +117,12 @@ class TaskCreate(TaskBase):
         """Normalize the category to lowercase on creation."""
         return _normalize_category(value)
 
+    @field_validator("priority", mode="before")
+    @classmethod
+    def _parse_priority(cls, value: object) -> object:
+        """Accept a priority name (e.g. ``"high"``) as well as its int."""
+        return _parse_priority_name(value)
+
 
 class TaskUpdate(SQLModel):
     """Model for updating a task. All fields are optional."""
@@ -65,6 +139,12 @@ class TaskUpdate(SQLModel):
     def _lower_category(cls, value: object) -> object:
         """Normalize the category to lowercase on update."""
         return _normalize_category(value)
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def _parse_priority(cls, value: object) -> object:
+        """Accept a priority name (e.g. ``"high"``) as well as its int."""
+        return _parse_priority_name(value)
 
 
 class Task(TaskBase, table=True):

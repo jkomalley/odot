@@ -13,7 +13,7 @@ Env PATH "/Users/kyle/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local
 Env ODOT_DB_PATH "/tmp/odot_demo/db.sqlite"
 
 # Add a task
-Type "odot add 'Plan weekend hike' -p 1 -c personal"
+Type "odot add 'Plan weekend hike' -p low -c personal"
 Enter
 Sleep 1.5s
 

@@ -11,23 +11,16 @@ from datetime import datetime, timedelta
 from rich.table import Table
 from rich.text import Text
 
-from odot.models import Task
+from odot.models import Priority, Task, priority_name
 
-#: Rich markup for each priority level, paired with a short text label so the
-#: meaning survives even without color (e.g. piped output, colorblind users).
-_PRIORITY_DISPLAY = {
-    1: "[dim]● Low[/dim]",
-    2: "[yellow]●● Med[/yellow]",
-    3: "[bold red]●●● High[/bold red]",
-}
-
-#: Plain-text (no rich/ANSI markup) counterpart of `_PRIORITY_DISPLAY`, used by
-#: questionary choice labels — questionary titles are rendered verbatim and do
-#: not interpret rich markup, so the bracketed color tags would leak literally.
-_PRIORITY_DISPLAY_PLAIN = {
-    1: "● Low",
-    2: "●● Med",
-    3: "●●● High",
+#: Rich style per priority level. The dots and label text come from `Priority`
+#: itself (see `priority_display_plain`), so the display always matches the
+#: names `-p` accepts; the label also keeps the meaning without color (e.g.
+#: piped output, colorblind users).
+_PRIORITY_STYLE = {
+    Priority.LOW: "dim",
+    Priority.MEDIUM: "yellow",
+    Priority.HIGH: "bold red",
 }
 
 #: Max content width in an interactive-selection label before truncation; the
@@ -47,7 +40,9 @@ def priority_display(priority: int) -> str:
         Rich markup string for the priority, or the bare number if it falls
         outside the known 1-3 range.
     """
-    return _PRIORITY_DISPLAY.get(priority, str(priority))
+    plain = priority_display_plain(priority)
+    style = _PRIORITY_STYLE.get(priority)
+    return f"[{style}]{plain}[/{style}]" if style else plain
 
 
 def priority_display_plain(priority: int) -> str:
@@ -62,9 +57,10 @@ def priority_display_plain(priority: int) -> str:
             its bare string form).
 
     Returns:
-        A plain string such as "●● Med", or the bare number if out of range.
+        A plain string such as "●● Medium", or the bare number if out of range.
     """
-    return _PRIORITY_DISPLAY_PLAIN.get(priority, str(priority))
+    name = priority_name(priority)
+    return f"{'●' * priority} {name}" if priority in _PRIORITY_STYLE else name
 
 
 def _truncate(text: str, width: int) -> str:

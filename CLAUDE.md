@@ -27,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The project uses a `src/odot/` layout with this module structure:
 
-- `models.py` — SQLModel schemas: `TaskBase` (shared fields: `content`, `priority` 1–3, `category`), `Task` (the `tasks` table, adds `id`, `is_done`, `created_at`, `updated_at`), `TaskCreate` (creation input), `TaskUpdate` (all fields optional, for partial updates).
+- `models.py` — SQLModel schemas: `Priority` (`IntEnum` LOW/MEDIUM/HIGH = 1–3, with `parse` for names or legacy numbers), `TaskBase` (shared fields: `content`, `priority` stored as an int 1–3, `category`), `Task` (the `tasks` table, adds `id`, `is_done`, `created_at`, `updated_at`), `TaskCreate` (creation input), `TaskUpdate` (all fields optional, for partial updates).
 - `core.py` — Pure CRUD and business logic (add/get/list/search/update/delete tasks, bulk clean/purge, JSON import/export, Markdown/HTML report generation). Operates on a `Session` passed in by the caller; knows nothing about the CLI or presentation layer.
 - `database.py` — Engine, session, and path management: `get_db_path()` (honors `ODOT_DB_PATH`), `get_engine()` (lazily-created module-level singleton engine), `create_db_and_tables()`.
 - `cli.py` — Typer commands, Rich console output, Questionary interactive prompts (used when a required argument like a task ID is omitted). Table and choice-label formatting is delegated to `_format.py`.
@@ -37,6 +37,7 @@ Key design decisions:
 
 - **The typer/rich/questionary/sqlmodel stack is a deliberate divergence** from the owner's usual argparse/zero-dependency house standard. `odot` is an interactive TUI-style app, and this stack is the pragmatic choice for that — it isn't an oversight.
 - **Categories are free-text and normalized to lowercase (and trimmed) on write.** There is no fixed enum; `Work`, `WORK`, `work`, and `" work "` all persist as `work`, and a whitespace-only category is rejected like an empty one. Normalization lives on the `TaskCreate`/`TaskUpdate` input seam (not the `Task` table model); `--category` filters are trimmed and lowercased before matching. Pre-normalization rows already in a user's database are not migrated.
+- **Priority is stored as an `INTEGER` 1–3 but entered and shown as Low/Medium/High.** `Priority` is deliberately not the column type: SQLModel would map an Enum field to a SQLAlchemy `Enum` column that persists member *names*, breaking existing rows. Names are converted to ints on the `TaskCreate`/`TaskUpdate` seam; `-p` also still accepts legacy `1`–`3`. Machine output (`--json`, `export`) keeps the integer.
 - **The database lives at `~/.odot/db.sqlite`** unless the `ODOT_DB_PATH` environment variable overrides it. The database and its parent directory are created automatically on first use.
 - **The engine is a process-level singleton** (`database._engine`), created lazily on first `get_engine()` call. Tests replace it with an in-memory engine (see Testing Notes).
 

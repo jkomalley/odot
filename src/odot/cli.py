@@ -17,7 +17,7 @@ from sqlmodel import Session
 
 from odot import core, database
 from odot._format import build_task_choice_labels, relative_time, render_task_table
-from odot.models import Task, TaskCreate, TaskUpdate
+from odot.models import Priority, Task, TaskCreate, TaskUpdate, priority_name
 
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -138,16 +138,36 @@ def require_force(force: bool, prompt: str, *, as_json: bool) -> None:
     typer.confirm(prompt, abort=True)
 
 
-def _prompt_priority(message: str, *, default: str | None = None) -> int | None:
-    """Prompt for a priority via a questionary select, parsing the result to int.
+def _prompt_priority(
+    message: str, *, default: Priority | None = None
+) -> Priority | None:
+    """Prompt for a priority via a questionary select of named levels.
 
     Shared by `add` and `_prompt_update_fields`, which both offer the same
-    1-3 choice set. Returns None if the prompt is cancelled/empty.
+    Low/Medium/High choice set. Returns None if the prompt is cancelled.
     """
-    priority_str = questionary.select(
-        message, choices=["1", "2", "3"], default=default
+    choices = {p: questionary.Choice(title=p.label, value=p) for p in Priority}
+    return questionary.select(
+        message, choices=list(choices.values()), default=choices.get(default)
     ).ask()
-    return int(priority_str) if priority_str else None
+
+
+def _parse_priority_option(value: str | None, *, as_json: bool) -> Priority | None:
+    """Parse the raw `-p/--priority` value, or None if the flag was omitted.
+
+    Parsed here rather than via Typer's `parser=`, whose error drops the parse
+    message and reports only the rejected value. A bad level is a usage error
+    (exit 2) either way: `BadParameter` normally, or `json_error` under --json
+    so it matches the other --json usage errors instead of Click's usage box.
+    """
+    if value is None:
+        return None
+    try:
+        return Priority.parse(value)
+    except ValueError as e:
+        if as_json:
+            raise json_error(f"Invalid value for --priority: {e}", code=2) from e
+        raise typer.BadParameter(str(e), param_hint="'-p' / '--priority'") from e
 
 
 def _cancelled() -> typer.Exit:
@@ -318,7 +338,13 @@ def add(
     ctx: typer.Context,
     content: Annotated[str | None, typer.Argument(help="Task content")] = None,
     priority: Annotated[
-        int | None, typer.Option("-p", "--priority", help="Priority from 1 to 3")
+        str | None,
+        typer.Option(
+            "-p",
+            "--priority",
+            metavar="LEVEL",
+            help="Priority: low, medium, or high",
+        ),
     ] = None,
     category: Annotated[
         str | None, typer.Option("-c", "--category", help="Category label")
@@ -327,22 +353,23 @@ def add(
 ) -> None:
     """Add a new task."""
     as_json = json_enabled(ctx, json_output)
+    level = _parse_priority_option(priority, as_json=as_json)
     if content is None:
         if as_json:
             raise json_error("Task content is required in --json mode.", code=2)
         content = Prompt.ask("Task content")
-        if priority is None:
-            priority = _prompt_priority("Priority:", default="1") or 1
+        if level is None:
+            level = _prompt_priority("Priority:", default=Priority.LOW)
         if category is None:
             category = Prompt.ask("Category", default="general")
-    if priority is None:
-        priority = 1
+    if level is None:
+        level = Priority.LOW
     if category is None:
         category = "general"
 
     db = ctx.obj.session
     try:
-        task_data = TaskCreate(content=content, priority=priority, category=category)
+        task_data = TaskCreate(content=content, priority=level, category=category)
     except ValidationError as e:
         message = f"Invalid task data: {e}"
         if as_json:
@@ -355,7 +382,7 @@ def add(
         return
     console.print(f'[green]✅ Added task {task.id}: "{task.content}"[/green]')
     console.print(
-        f"[dim]   Priority: {task.priority} │ Category: {task.category} "
+        f"[dim]   Priority: {priority_name(task.priority)} │ Category: {task.category} "
         f"│ Created: just now[/dim]"
     )
 
@@ -386,7 +413,7 @@ def show(
     table.add_column("Value", style="magenta")
 
     table.add_row("Content", task.content)
-    table.add_row("Priority", str(task.priority))
+    table.add_row("Priority", priority_name(task.priority))
     table.add_row("Category", task.category)
     table.add_row("Status", "Done" if task.is_done else "Pending")
 
@@ -589,6 +616,11 @@ def _print_update_diff(before: dict[str, Any], after: Task) -> None:
         old_value = before[field]
         new_value = getattr(after, field)
         if old_value != new_value:
+            if field == "priority":
+                old_value, new_value = (
+                    priority_name(old_value),
+                    priority_name(new_value),
+                )
             console.print(f"[dim]   {field}: {old_value} → {new_value}[/dim]")
     if before["is_done"] != after.is_done:
         old_status = "Done" if before["is_done"] else "Pending"
@@ -604,7 +636,13 @@ def update(
         str | None, typer.Option("-m", "--content", help="Update task text")
     ] = None,
     priority: Annotated[
-        int | None, typer.Option("-p", "--priority", help="Update priority (1-3)")
+        str | None,
+        typer.Option(
+            "-p",
+            "--priority",
+            metavar="LEVEL",
+            help="Update priority: low, medium, or high",
+        ),
     ] = None,
     category: Annotated[
         str | None, typer.Option("-c", "--category", help="Update category")
@@ -618,12 +656,15 @@ def update(
     """Update properties of an existing task."""
     as_json = json_enabled(ctx, json_output)
     db = ctx.obj.session
+    # Parsed before the task lookup so a bad level fails fast, not after an
+    # interactive task-selection prompt.
+    level = _parse_priority_option(priority, as_json=as_json)
     task_id = require_task_id(ctx, task_id, "update", as_json=as_json)
 
     # Collect only the arguments the user explicitly provided on the command line.
     provided_args = {
         "content": content,
-        "priority": priority,
+        "priority": level,
         "category": category,
         "is_done": done,
     }

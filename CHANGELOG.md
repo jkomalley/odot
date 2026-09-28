@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `odot import` accepts priority names (`"priority": "high"`) as well as the
+  integers `export` writes. (#164)
+
+### Changed
+
+- Priority is now entered and shown as Low/Medium/High: `-p`/`--priority`
+  takes `low`, `medium`, or `high` (any case), the interactive prompt offers
+  the names, and `show`, the add confirmation, the update diff, and reports
+  display them. `-p 1`-`3` still works, and `--json`/`export` still emit the
+  integer. An unknown level is now a usage error (exit 2). (#164)
+- The priority label in `list`, `search`, and task-selection menus reads
+  `Medium` instead of `Med`. (#164)
+
 ## [0.6.0] - 2026-09-22
 
 ### Changed

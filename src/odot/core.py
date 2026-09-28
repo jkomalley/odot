@@ -10,7 +10,7 @@ from typing import TextIO
 
 from sqlmodel import Session, col, delete, select
 
-from odot.models import Task, TaskCreate, TaskUpdate
+from odot.models import Task, TaskCreate, TaskUpdate, priority_name
 
 #: Fields accepted by `list_tasks`'s `sort_by` parameter (case-insensitive).
 VALID_SORT_FIELDS = ("priority", "date", "category", "status")
@@ -298,7 +298,8 @@ def generate_markdown_report(tasks: list[Task]) -> str:
         lines.append(f"## {category}")
         for task in category_tasks:
             checkbox = "[x]" if task.is_done else "[ ]"
-            lines.append(f"- {checkbox} {task.content} (Priority: {task.priority})")
+            priority = priority_name(task.priority)
+            lines.append(f"- {checkbox} {task.content} (Priority: {priority})")
         lines.append("")
 
     return "\n".join(lines)
@@ -372,8 +373,9 @@ def generate_html_report(tasks: list[Task]) -> str:
                 html.append(
                     f"            <span class='content'>{escape(task.content)}</span>"
                 )
+                priority = priority_name(task.priority)
                 html.append(
-                    f"            <span class='priority'>Priority: {task.priority}</span>"  # noqa: E501
+                    f"            <span class='priority'>Priority: {priority}</span>"
                 )
                 html.append("        </li>")
             html.append("    </ul>")
