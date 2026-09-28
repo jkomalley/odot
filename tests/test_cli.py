@@ -11,6 +11,29 @@ from odot.models import Priority
 runner = CliRunner()
 
 
+def select_by_message(answers, captured=None):
+    """Build a `questionary.select` stand-in that answers per prompt message.
+
+    Needed once a single command can show more than one select (priority and
+    category). Keyword arguments of each call are recorded into `captured`,
+    keyed by message, so tests can inspect the offered choices.
+    """
+
+    class _Answer:
+        def __init__(self, value):
+            self.value = value
+
+        def ask(self):
+            return self.value
+
+    def fake_select(message, **kwargs):
+        if captured is not None:
+            captured[message] = kwargs
+        return _Answer(answers[message])
+
+    return fake_select
+
+
 @pytest.fixture(autouse=True)
 def override_db_dependency(monkeypatch, session, tmp_path):
     """Override the database session for all CLI tests via monkeypatching Session."""
@@ -167,6 +190,78 @@ def test_add_command_priority_prompt_offers_named_levels(monkeypatch):
     assert [c.value for c in captured["choices"]] == list(Priority)
     assert captured["default"].value is Priority.LOW
     assert "Priority: Medium" in result.stdout
+
+
+def test_add_command_category_prompt_picks_existing_category(monkeypatch):
+    """With categories in use, add offers them in a select (#160)."""
+    runner.invoke(app, ["add", "Seed", "-c", "work"])
+    monkeypatch.setattr(
+        "questionary.select",
+        select_by_message({"Priority:": Priority.LOW, "Category:": "work"}),
+    )
+    result = runner.invoke(app, ["add"], input="Interactive task\n")
+    assert result.exit_code == 0
+    assert "Category: work" in result.stdout
+
+
+def test_add_command_category_prompt_offers_existing_and_new(monkeypatch):
+    """Choices are the categories in use, a separator, then 'New category…'."""
+    import questionary
+
+    runner.invoke(app, ["add", "Seed 1", "-c", "work"])
+    runner.invoke(app, ["add", "Seed 2"])  # the "general" default
+    captured = {}
+    monkeypatch.setattr(
+        "questionary.select",
+        select_by_message(
+            {"Priority:": Priority.LOW, "Category:": "general"}, captured
+        ),
+    )
+    runner.invoke(app, ["add"], input="Interactive task\n")
+
+    choices = captured["Category:"]["choices"]
+    assert choices[:2] == ["general", "work"]
+    assert isinstance(choices[2], questionary.Separator)
+    assert choices[3].title == "New category…"
+    assert captured["Category:"]["default"] == "general"
+
+
+def test_add_command_category_prompt_no_default_when_general_unused(monkeypatch):
+    """The 'general' default is only preselected if it is actually offered."""
+    runner.invoke(app, ["add", "Seed", "-c", "work"])
+    captured = {}
+    monkeypatch.setattr(
+        "questionary.select",
+        select_by_message({"Priority:": Priority.LOW, "Category:": "work"}, captured),
+    )
+    runner.invoke(app, ["add"], input="Interactive task\n")
+    assert captured["Category:"]["default"] is None
+
+
+def test_add_command_category_prompt_new_category(monkeypatch):
+    """Choosing 'New category…' asks for a name, normalized like any input."""
+    from odot.cli import _NEW_CATEGORY
+
+    runner.invoke(app, ["add", "Seed", "-c", "work"])
+    monkeypatch.setattr(
+        "questionary.select",
+        select_by_message({"Priority:": Priority.LOW, "Category:": _NEW_CATEGORY}),
+    )
+    result = runner.invoke(app, ["add"], input="Interactive task\n Errands \n")
+    assert result.exit_code == 0
+    assert "Category: errands" in result.stdout
+
+
+def test_add_command_category_prompt_cancel_defaults_to_general(monkeypatch):
+    """A cancelled category select falls back to 'general', like priority."""
+    runner.invoke(app, ["add", "Seed", "-c", "work"])
+    monkeypatch.setattr(
+        "questionary.select",
+        select_by_message({"Priority:": Priority.LOW, "Category:": None}),
+    )
+    result = runner.invoke(app, ["add"], input="Interactive task\n")
+    assert result.exit_code == 0
+    assert "Category: general" in result.stdout
 
 
 def test_add_command_out_of_range_priority_reports_clean_error():
@@ -600,14 +695,11 @@ def test_update_command_no_fields_selected(monkeypatch):
 def test_update_command_interactive_all_fields(monkeypatch):
     """Selecting every field in the interactive TUI updates them all."""
     runner.invoke(app, ["add", "Second task here"])
+    runner.invoke(app, ["add", "Other task", "-c", "errands"])
 
     class MockFullCheckbox:
         def ask(self):
             return ["content", "priority", "category", "done"]
-
-    class MockSelectPriority:
-        def ask(self):
-            return Priority.HIGH
 
     class MockConfirmDone:
         def ask(self):
@@ -615,7 +707,10 @@ def test_update_command_interactive_all_fields(monkeypatch):
 
     monkeypatch.setattr("questionary.checkbox", lambda *a, **k: MockFullCheckbox())
     monkeypatch.setattr("rich.prompt.Prompt.ask", lambda *a: "Interactively Updated")
-    monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectPriority())
+    monkeypatch.setattr(
+        "questionary.select",
+        select_by_message({"New priority:": Priority.HIGH, "New category:": "errands"}),
+    )
     monkeypatch.setattr("questionary.confirm", lambda *a, **k: MockConfirmDone())
 
     result = runner.invoke(app, ["update", "1"])
@@ -624,6 +719,7 @@ def test_update_command_interactive_all_fields(monkeypatch):
     verify = runner.invoke(app, ["show", "1"])
     assert "Interactively Updated" in verify.stdout
     assert "High" in verify.stdout
+    assert "errands" in verify.stdout
     assert "Done" in verify.stdout
 
 
@@ -708,6 +804,45 @@ def test_update_interactive_partial_content_only(monkeypatch):
     assert result.exit_code == 0
     assert "Updated task #1" in result.stdout
     assert "content: Partial task → Only content changed" in result.stdout
+
+
+def test_update_interactive_category_picks_existing(monkeypatch):
+    """The interactive update offers categories in use for the new category."""
+    runner.invoke(app, ["add", "Move me", "-c", "work"])
+    runner.invoke(app, ["add", "Other", "-c", "home"])
+
+    class MockCategoryOnlyCheckbox:
+        def ask(self):
+            return ["category"]
+
+    monkeypatch.setattr(
+        "questionary.checkbox", lambda *a, **k: MockCategoryOnlyCheckbox()
+    )
+    monkeypatch.setattr(
+        "questionary.select", select_by_message({"New category:": "home"})
+    )
+    result = runner.invoke(app, ["update", "1"])
+    assert result.exit_code == 0
+    assert "category: work → home" in result.stdout
+
+
+def test_update_interactive_cancelled_category_is_skipped(monkeypatch):
+    """Cancelling the category select leaves the field unset, like priority."""
+    runner.invoke(app, ["add", "Keep me", "-c", "work"])
+
+    class MockCategoryOnlyCheckbox:
+        def ask(self):
+            return ["category"]
+
+    monkeypatch.setattr(
+        "questionary.checkbox", lambda *a, **k: MockCategoryOnlyCheckbox()
+    )
+    monkeypatch.setattr(
+        "questionary.select", select_by_message({"New category:": None})
+    )
+    result = runner.invoke(app, ["update", "1"])
+    assert result.exit_code == 0
+    assert "category:" not in result.stdout
 
 
 def test_update_interactive_partial_cancelled_priority(monkeypatch):

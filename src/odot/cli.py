@@ -152,6 +152,46 @@ def _prompt_priority(
     ).ask()
 
 
+#: Value of the "New category…" entry in `_prompt_category`'s select; a unique
+#: object so it can never collide with a real category name.
+_NEW_CATEGORY = object()
+
+
+def _prompt_category(
+    db: Session, message: str, *, default: str | None = None
+) -> str | None:
+    """Prompt for a category, offering the ones already in use (#160).
+
+    Existing categories are listed in a questionary select followed by a
+    "New category…" entry that asks for free text. With no categories yet a
+    select would hold only that entry, so it falls straight through to the
+    text prompt. Normalization is left to `TaskCreate`/`TaskUpdate`.
+
+    Args:
+        db: Session used to look up the categories in use.
+        message: Prompt text.
+        default: Category to preselect (or pre-fill), if it is offered.
+
+    Returns:
+        The chosen or typed category, or None if the select was cancelled.
+    """
+    categories = core.list_categories(db=db)
+    if not categories:
+        return Prompt.ask(message.rstrip(":"), default=default)
+    answer = questionary.select(
+        message,
+        choices=[
+            *categories,
+            questionary.Separator(),
+            questionary.Choice("New category…", value=_NEW_CATEGORY),
+        ],
+        default=default if default in categories else None,
+    ).ask()
+    if answer is _NEW_CATEGORY:
+        return Prompt.ask("New category name")
+    return answer
+
+
 def _parse_priority_option(value: str | None, *, as_json: bool) -> Priority | None:
     """Parse the raw `-p/--priority` value, or None if the flag was omitted.
 
@@ -353,6 +393,7 @@ def add(
 ) -> None:
     """Add a new task."""
     as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
     level = _parse_priority_option(priority, as_json=as_json)
     if content is None:
         if as_json:
@@ -361,13 +402,12 @@ def add(
         if level is None:
             level = _prompt_priority("Priority:", default=Priority.LOW)
         if category is None:
-            category = Prompt.ask("Category", default="general")
+            category = _prompt_category(db, "Category:", default="general")
     if level is None:
         level = Priority.LOW
     if category is None:
         category = "general"
 
-    db = ctx.obj.session
     try:
         task_data = TaskCreate(content=content, priority=level, category=category)
     except ValidationError as e:
@@ -558,11 +598,14 @@ def search(
     console.print(table)
 
 
-def _prompt_update_fields() -> dict[str, Any] | None:
+def _prompt_update_fields(db: Session) -> dict[str, Any] | None:
     """Interactively collect update fields via a questionary checkbox form.
 
     Split out of `update` to keep that command's branch count under the
     complexity gate; this owns the entire "no flags given" fallback path.
+
+    Args:
+        db: Session used to offer the categories already in use.
 
     Returns:
         A kwargs dict suitable for `TaskUpdate(**kwargs)`, which may be
@@ -586,7 +629,9 @@ def _prompt_update_fields() -> dict[str, Any] | None:
         if priority is not None:
             update_kwargs["priority"] = priority
     if "category" in choices:
-        update_kwargs["category"] = Prompt.ask("New category")
+        category = _prompt_category(db, "New category:")
+        if category is not None:
+            update_kwargs["category"] = category
     if "done" in choices:
         update_kwargs["is_done"] = questionary.confirm("Is the task done?").ask()
 
@@ -679,7 +724,7 @@ def update(
             raise json_error(
                 "At least one field flag is required in --json mode.", code=2
             )
-        prompted = _prompt_update_fields()
+        prompted = _prompt_update_fields(db)
         if prompted is None:
             console.print("[yellow]No updates provided.[/yellow]")
             raise typer.Exit(code=1)
