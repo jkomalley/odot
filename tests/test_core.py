@@ -274,6 +274,28 @@ def test_delete_all_tasks(session):
     assert count_again == 0
 
 
+def test_list_categories_empty(session):
+    """With no tasks there are no categories to offer."""
+    assert core.list_categories(db=session) == []
+
+
+def test_list_categories_distinct_and_sorted(session):
+    """Each category appears once, alphabetically (#160)."""
+    for content, category in [("a", "work"), ("b", "home"), ("c", "work")]:
+        core.add_task(
+            db=session, task_data=TaskCreate(content=content, category=category)
+        )
+    assert core.list_categories(db=session) == ["home", "work"]
+
+
+def test_list_categories_collapses_legacy_casing(session):
+    """Pre-normalization rows (stored as-is) collapse into their normalized form."""
+    session.add(Task(content="legacy", category=" Work "))
+    session.add(Task(content="new", category="work"))
+    session.commit()
+    assert core.list_categories(db=session) == ["work"]
+
+
 def test_export_tasks(session, tmp_path):
     """Test JSON exporting with filtering."""
     core.add_task(
