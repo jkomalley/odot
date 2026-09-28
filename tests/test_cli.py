@@ -183,7 +183,9 @@ def test_json_add_out_of_range_priority_errors_on_stderr():
     assert result.exit_code == 2
     assert result.stdout == ""
     assert "ValidationError" not in result.stderr
-    assert "priority" in result.stderr.lower()
+    # Same json_error channel as other --json usage errors, not Click's box.
+    assert "Usage:" not in result.stderr
+    assert "low, medium, or high" in result.stderr
 
 
 def test_add_command_empty_category_is_rejected():
@@ -658,7 +660,9 @@ def test_json_update_out_of_range_priority_errors_on_stderr():
     assert result.exit_code == 2
     assert result.stdout == ""
     assert "ValidationError" not in result.stderr
-    assert "priority" in result.stderr.lower()
+    # Same json_error channel as other --json usage errors, not Click's box.
+    assert "Usage:" not in result.stderr
+    assert "low, medium, or high" in result.stderr
 
 
 def test_json_add_invalid_task_data_errors_on_stderr():

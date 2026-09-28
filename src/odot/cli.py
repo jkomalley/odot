@@ -152,18 +152,21 @@ def _prompt_priority(
     ).ask()
 
 
-def _parse_priority_option(value: str | None) -> Priority | None:
+def _parse_priority_option(value: str | None, *, as_json: bool) -> Priority | None:
     """Parse the raw `-p/--priority` value, or None if the flag was omitted.
 
     Parsed here rather than via Typer's `parser=`, whose error drops the parse
-    message and reports only the rejected value. `BadParameter` is a usage
-    error, so a bad level exits 2 like any other malformed flag.
+    message and reports only the rejected value. A bad level is a usage error
+    (exit 2) either way: `BadParameter` normally, or `json_error` under --json
+    so it matches the other --json usage errors instead of Click's usage box.
     """
     if value is None:
         return None
     try:
         return Priority.parse(value)
     except ValueError as e:
+        if as_json:
+            raise json_error(f"Invalid value for --priority: {e}", code=2) from e
         raise typer.BadParameter(str(e), param_hint="'-p' / '--priority'") from e
 
 
@@ -350,7 +353,7 @@ def add(
 ) -> None:
     """Add a new task."""
     as_json = json_enabled(ctx, json_output)
-    level = _parse_priority_option(priority)
+    level = _parse_priority_option(priority, as_json=as_json)
     if content is None:
         if as_json:
             raise json_error("Task content is required in --json mode.", code=2)
@@ -655,7 +658,7 @@ def update(
     db = ctx.obj.session
     # Parsed before the task lookup so a bad level fails fast, not after an
     # interactive task-selection prompt.
-    level = _parse_priority_option(priority)
+    level = _parse_priority_option(priority, as_json=as_json)
     task_id = require_task_id(ctx, task_id, "update", as_json=as_json)
 
     # Collect only the arguments the user explicitly provided on the command line.
