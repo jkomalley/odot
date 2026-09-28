@@ -152,6 +152,51 @@ def _prompt_priority(
     ).ask()
 
 
+#: Value of the "New category…" entry in `_prompt_category`'s select; a unique
+#: object so it can never collide with a real category name.
+_NEW_CATEGORY = object()
+
+
+def _prompt_category(
+    db: Session, message: str, *, default: str | None = None
+) -> str | None:
+    """Prompt for a category, offering the ones already in use (#160).
+
+    Existing categories are listed in a questionary select followed by a
+    "New category…" entry that asks for free text. With no categories yet a
+    select would hold only that entry, so it falls straight through to the
+    text prompt. Normalization is left to `TaskCreate`/`TaskUpdate`.
+
+    Args:
+        db: Session used to look up the categories in use.
+        message: Prompt text.
+        default: Category to preselect in the select (if it is offered) and
+            to return when a text prompt is left blank.
+
+    Returns:
+        The chosen or typed category; `default` if a text prompt was left
+        blank; or None if the select was cancelled (questionary maps Ctrl-C
+        to None). With `default=None`, a blank text prompt also returns None.
+    """
+    categories = core.list_categories(db=db)
+    if not categories:
+        return Prompt.ask(message.rstrip(":"), default=default)
+    answer = questionary.select(
+        message,
+        choices=[
+            *categories,
+            questionary.Separator(),
+            questionary.Choice("New category…", value=_NEW_CATEGORY),
+        ],
+        default=default if default in categories else None,
+    ).ask()
+    if answer is _NEW_CATEGORY:
+        # Pass the default so Enter keeps it, rather than returning "" (which
+        # no write accepts) and failing the whole command.
+        return Prompt.ask("New category name", default=default)
+    return answer
+
+
 def _parse_priority_option(value: str | None, *, as_json: bool) -> Priority | None:
     """Parse the raw `-p/--priority` value, or None if the flag was omitted.
 
@@ -353,21 +398,17 @@ def add(
 ) -> None:
     """Add a new task."""
     as_json = json_enabled(ctx, json_output)
+    db = ctx.obj.session
     level = _parse_priority_option(priority, as_json=as_json)
     if content is None:
         if as_json:
             raise json_error("Task content is required in --json mode.", code=2)
-        content = Prompt.ask("Task content")
-        if level is None:
-            level = _prompt_priority("Priority:", default=Priority.LOW)
-        if category is None:
-            category = Prompt.ask("Category", default="general")
+        content, level, category = _prompt_add_fields(db, level, category)
     if level is None:
         level = Priority.LOW
     if category is None:
         category = "general"
 
-    db = ctx.obj.session
     try:
         task_data = TaskCreate(content=content, priority=level, category=category)
     except ValidationError as e:
@@ -558,11 +599,51 @@ def search(
     console.print(table)
 
 
-def _prompt_update_fields() -> dict[str, Any] | None:
+def _prompt_add_fields(
+    db: Session, level: Priority | None, category: str | None
+) -> tuple[str, Priority, str]:
+    """Interactively collect the fields for a bare `odot add`.
+
+    Split out of `add` to keep that command under the complexity gate, like
+    `_prompt_update_fields` for `update`. Priority and category are only
+    prompted for when their flag was not given.
+
+    Args:
+        db: Session used to offer the categories already in use.
+        level: The parsed `-p` value, or None to prompt for it.
+        category: The `-c` value, or None to prompt for it.
+
+    Returns:
+        The content, priority, and category to create the task with.
+
+    Raises:
+        typer.Exit: If a select is cancelled. questionary maps Ctrl-C to None,
+            which aborts the add rather than silently saving a default.
+    """
+    content = Prompt.ask("Task content")
+    if level is None:
+        level = _prompt_priority("Priority:", default=Priority.LOW)
+        if level is None:
+            raise _cancelled()
+    if category is None:
+        category = _prompt_category(db, "Category:", default="general")
+        if category is None:
+            raise _cancelled()
+    return content, level, category
+
+
+def _prompt_update_fields(
+    db: Session, *, current_category: str
+) -> dict[str, Any] | None:
     """Interactively collect update fields via a questionary checkbox form.
 
     Split out of `update` to keep that command's branch count under the
     complexity gate; this owns the entire "no flags given" fallback path.
+
+    Args:
+        db: Session used to offer the categories already in use.
+        current_category: The task's category, preselected in the category
+            select so pressing Enter keeps it instead of moving the task.
 
     Returns:
         A kwargs dict suitable for `TaskUpdate(**kwargs)`, which may be
@@ -586,7 +667,9 @@ def _prompt_update_fields() -> dict[str, Any] | None:
         if priority is not None:
             update_kwargs["priority"] = priority
     if "category" in choices:
-        update_kwargs["category"] = Prompt.ask("New category")
+        category = _prompt_category(db, "New category:", default=current_category)
+        if category is not None:
+            update_kwargs["category"] = category
     if "done" in choices:
         update_kwargs["is_done"] = questionary.confirm("Is the task done?").ask()
 
@@ -661,6 +744,19 @@ def update(
     level = _parse_priority_option(priority, as_json=as_json)
     task_id = require_task_id(ctx, task_id, "update", as_json=as_json)
 
+    # Look the task up first (rather than only checking update_task's return)
+    # so we can report not-found before any field prompt, offer the current
+    # category as the prompt default, and snapshot the before-state
+    # for the diff (#57) — snapshotting the same live update_task result
+    # would be a no-op since SQLAlchemy's identity map mutates it in place.
+    existing = core.get_task(db=db, task_id=task_id)
+    if not existing:
+        if as_json:
+            raise json_error(f"Task {task_id} not found.")
+        console.print(f"[red]Task {task_id} not found.[/red]")
+        raise typer.Exit(code=1)
+    before = _snapshot(existing)
+
     # Collect only the arguments the user explicitly provided on the command line.
     provided_args = {
         "content": content,
@@ -679,23 +775,11 @@ def update(
             raise json_error(
                 "At least one field flag is required in --json mode.", code=2
             )
-        prompted = _prompt_update_fields()
+        prompted = _prompt_update_fields(db, current_category=existing.category)
         if prompted is None:
             console.print("[yellow]No updates provided.[/yellow]")
             raise typer.Exit(code=1)
         update_kwargs = prompted
-
-    # Look the task up first (rather than only checking update_task's return)
-    # so we can both report not-found up front and snapshot the before-state
-    # for the diff (#57) — snapshotting the same live update_task result
-    # would be a no-op since SQLAlchemy's identity map mutates it in place.
-    existing = core.get_task(db=db, task_id=task_id)
-    if not existing:
-        if as_json:
-            raise json_error(f"Task {task_id} not found.")
-        console.print(f"[red]Task {task_id} not found.[/red]")
-        raise typer.Exit(code=1)
-    before = _snapshot(existing)
 
     try:
         update_data = TaskUpdate(**update_kwargs)

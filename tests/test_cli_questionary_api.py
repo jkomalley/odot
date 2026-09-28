@@ -54,3 +54,19 @@ def test_prompt_priority_questionary_parameters_valid(monkeypatch):
     monkeypatch.setattr(questionary.Question, "ask", lambda self: Priority.HIGH)
     assert _prompt_priority("Priority:", default=Priority.LOW) is Priority.HIGH
     assert _prompt_priority("New priority:") is Priority.HIGH
+
+
+def test_prompt_category_questionary_parameters_valid(monkeypatch, session):
+    """Ensure the real questionary.select() accepts _prompt_category's arguments.
+
+    Exercises the Separator, the sentinel-valued "New category…" Choice, and a
+    preselected default (questionary raises if the default is not a choice).
+    """
+    from odot import core
+    from odot.cli import _prompt_category
+    from odot.models import TaskCreate
+
+    core.add_task(db=session, task_data=TaskCreate(content="x", category="work"))
+    monkeypatch.setattr(questionary.Question, "ask", lambda self: "work")
+    assert _prompt_category(session, "Category:", default="work") == "work"
+    assert _prompt_category(session, "Category:", default="general") == "work"

@@ -118,6 +118,27 @@ def search_tasks(db: Session, phrase: str) -> list[Task]:
     return list(db.exec(statement).all())
 
 
+def list_categories(db: Session) -> list[str]:
+    """List every category in use, normalized, deduplicated, and sorted.
+
+    Normalizes (trim + lowercase) in Python rather than trusting the stored
+    value, so legacy rows written before category normalization (e.g. "Work")
+    collapse into the form a new write would produce; any that normalize to
+    an empty string are dropped.
+
+    Args:
+        db: SQLModel Session instance.
+
+    Returns:
+        The distinct normalized category names, alphabetically.
+    """
+    categories = db.exec(select(Task.category).distinct()).all()
+    normalized = {category.strip().lower() for category in categories}
+    # A legacy whitespace-only row normalizes to "", which no write accepts.
+    normalized.discard("")
+    return sorted(normalized)
+
+
 def update_task(db: Session, task_id: int, data: TaskUpdate) -> Task | None:
     """Update properties of an existing task conditionally.
 
