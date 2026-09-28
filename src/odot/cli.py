@@ -170,10 +170,13 @@ def _prompt_category(
     Args:
         db: Session used to look up the categories in use.
         message: Prompt text.
-        default: Category to preselect (or pre-fill), if it is offered.
+        default: Category to preselect in the select (if it is offered) and
+            to return when a text prompt is left blank.
 
     Returns:
-        The chosen or typed category, or None if the select was cancelled.
+        The chosen or typed category; `default` if a text prompt was left
+        blank; or None if the select was cancelled (questionary maps Ctrl-C
+        to None). With `default=None`, a blank text prompt also returns None.
     """
     categories = core.list_categories(db=db)
     if not categories:
@@ -188,7 +191,9 @@ def _prompt_category(
         default=default if default in categories else None,
     ).ask()
     if answer is _NEW_CATEGORY:
-        return Prompt.ask("New category name")
+        # Pass the default so Enter keeps it, rather than returning "" (which
+        # no write accepts) and failing the whole command.
+        return Prompt.ask("New category name", default=default)
     return answer
 
 

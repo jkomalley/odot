@@ -264,6 +264,20 @@ def test_add_command_category_prompt_cancel_defaults_to_general(monkeypatch):
     assert "Category: general" in result.stdout
 
 
+def test_add_command_blank_new_category_name_defaults_to_general(monkeypatch):
+    """Enter at the 'New category name' prompt keeps the 'general' default."""
+    from odot.cli import _NEW_CATEGORY
+
+    runner.invoke(app, ["add", "Seed", "-c", "work"])
+    monkeypatch.setattr(
+        "questionary.select",
+        select_by_message({"Priority:": Priority.LOW, "Category:": _NEW_CATEGORY}),
+    )
+    result = runner.invoke(app, ["add"], input="Interactive task\n\n")
+    assert result.exit_code == 0
+    assert "Category: general" in result.stdout
+
+
 def test_add_command_out_of_range_priority_reports_clean_error():
     """An out-of-range --priority is a clean CLI error, not a raw traceback."""
     result = runner.invoke(app, ["add", "Test Task", "--priority", "99"])
@@ -824,6 +838,28 @@ def test_update_interactive_category_picks_existing(monkeypatch):
     result = runner.invoke(app, ["update", "1"])
     assert result.exit_code == 0
     assert "category: work → home" in result.stdout
+
+
+def test_update_interactive_blank_new_category_name_is_skipped(monkeypatch):
+    """Enter at the 'New category name' prompt leaves the category unchanged."""
+    from odot.cli import _NEW_CATEGORY
+
+    runner.invoke(app, ["add", "Keep me", "-c", "work"])
+
+    class MockCategoryOnlyCheckbox:
+        def ask(self):
+            return ["category"]
+
+    monkeypatch.setattr(
+        "questionary.checkbox", lambda *a, **k: MockCategoryOnlyCheckbox()
+    )
+    monkeypatch.setattr(
+        "questionary.select", select_by_message({"New category:": _NEW_CATEGORY})
+    )
+    result = runner.invoke(app, ["update", "1"], input="\n")
+    assert result.exit_code == 0
+    assert "Invalid task data" not in result.stdout
+    assert "category:" not in result.stdout
 
 
 def test_update_interactive_cancelled_category_is_skipped(monkeypatch):
