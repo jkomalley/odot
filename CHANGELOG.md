@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pressing Ctrl-C at the priority prompt of interactive `odot add` now cancels
+  the add instead of saving the task as Low priority. (#165)
 - Priority is now entered and shown as Low/Medium/High: `-p`/`--priority`
   takes `low`, `medium`, or `high` (any case), the interactive prompt offers
   the names, and `show`, the add confirmation, the update diff, and reports
