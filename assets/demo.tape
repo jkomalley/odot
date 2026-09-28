@@ -74,6 +74,6 @@ Enter
 Sleep 1.5s
 
 # Final state
-Type "clear && odot list"
+Type "odot list"
 Enter
 Sleep 3.5s
