@@ -5,7 +5,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from odot.models import Task, TaskCreate, TaskUpdate
+from odot.models import Priority, Task, TaskCreate, TaskUpdate, priority_name
 
 
 def test_task_creation_valid():
@@ -188,3 +188,59 @@ def test_task_update_priority_out_of_bounds_rejected(priority):
     """Any priority outside [1, 3] should always be rejected by TaskUpdate."""
     with pytest.raises(ValidationError):
         TaskUpdate(priority=priority)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("low", Priority.LOW),
+        ("Medium", Priority.MEDIUM),
+        (" HIGH ", Priority.HIGH),
+        ("2", Priority.MEDIUM),
+        (" 3 ", Priority.HIGH),
+        (1, Priority.LOW),
+        (Priority.HIGH, Priority.HIGH),
+    ],
+)
+def test_priority_parse_accepts_names_and_numbers(raw, expected):
+    """Names are case/whitespace-insensitive; legacy 1-3 still parse (#159)."""
+    assert Priority.parse(raw) is expected
+
+
+@pytest.mark.parametrize("raw", ["urgent", "", "0", "4", 0, 4, 2.5, None])
+def test_priority_parse_rejects_unknown_values(raw):
+    """Anything else raises, and the message advertises the names only."""
+    with pytest.raises(ValueError, match="low, medium, or high"):
+        Priority.parse(raw)
+
+
+def test_priority_label():
+    """Each level has a capitalized human label."""
+    assert [p.label for p in Priority] == ["Low", "Medium", "High"]
+
+
+def test_priority_name_in_range():
+    """priority_name renders a stored int as its label."""
+    assert priority_name(2) == "Medium"
+
+
+def test_priority_name_out_of_range_falls_back_to_number():
+    """Malformed stored values render as the bare number instead of crashing."""
+    assert priority_name(7) == "7"
+
+
+def test_task_create_accepts_priority_name():
+    """TaskCreate converts a name to its stored int (e.g. from JSON import)."""
+    assert TaskCreate(content="x", priority="High").priority == 3
+
+
+def test_task_update_accepts_priority_name():
+    """TaskUpdate converts a name to its stored int."""
+    assert TaskUpdate(priority=" low ").priority == 1
+
+
+@pytest.mark.parametrize("model", [TaskCreate, TaskUpdate])
+def test_unknown_priority_name_rejected(model):
+    """An unknown name surfaces as a normal pydantic ValidationError."""
+    with pytest.raises(ValidationError):
+        model(content="x", priority="urgent")
