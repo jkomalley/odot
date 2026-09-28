@@ -136,18 +136,19 @@ def test_add_command_interactive_prompt_skips_category_prompt_when_flag_given(
     assert "Category: errand" in result.stdout
 
 
-def test_add_command_interactive_prompt_defaults_when_priority_cancelled(monkeypatch):
-    """A cancelled priority select (None) falls back to the default priority."""
+def test_add_command_cancelled_priority_aborts_without_saving(monkeypatch):
+    """Ctrl-C at the priority select (questionary returns None) aborts the add."""
 
     class MockSelectCancelled:
         def ask(self):
             return None
 
     monkeypatch.setattr("questionary.select", lambda *a, **k: MockSelectCancelled())
-    result = runner.invoke(app, ["add"], input="Interactive task\n\n")
+    result = runner.invoke(app, ["add"], input="Interactive task\n")
     assert result.exit_code == 0
-    assert "Priority: Low" in result.stdout
-    assert "Category: general" in result.stdout
+    assert "Operation cancelled." in result.stdout
+    assert "Added task" not in result.stdout
+    assert "No tasks yet" in runner.invoke(app, ["list"]).stdout
 
 
 def test_add_command_accepts_priority_name():
@@ -252,8 +253,8 @@ def test_add_command_category_prompt_new_category(monkeypatch):
     assert "Category: errands" in result.stdout
 
 
-def test_add_command_category_prompt_cancel_defaults_to_general(monkeypatch):
-    """A cancelled category select falls back to 'general', like priority."""
+def test_add_command_cancelled_category_aborts_without_saving(monkeypatch):
+    """Ctrl-C at the category select aborts the add instead of saving."""
     runner.invoke(app, ["add", "Seed", "-c", "work"])
     monkeypatch.setattr(
         "questionary.select",
@@ -261,7 +262,8 @@ def test_add_command_category_prompt_cancel_defaults_to_general(monkeypatch):
     )
     result = runner.invoke(app, ["add"], input="Interactive task\n")
     assert result.exit_code == 0
-    assert "Category: general" in result.stdout
+    assert "Operation cancelled." in result.stdout
+    assert "Interactive task" not in runner.invoke(app, ["list"]).stdout
 
 
 def test_add_command_blank_new_category_name_defaults_to_general(monkeypatch):

@@ -403,11 +403,7 @@ def add(
     if content is None:
         if as_json:
             raise json_error("Task content is required in --json mode.", code=2)
-        content = Prompt.ask("Task content")
-        if level is None:
-            level = _prompt_priority("Priority:", default=Priority.LOW)
-        if category is None:
-            category = _prompt_category(db, "Category:", default="general")
+        content, level, category = _prompt_add_fields(db, level, category)
     if level is None:
         level = Priority.LOW
     if category is None:
@@ -601,6 +597,39 @@ def search(
 
     table = render_task_table(tasks, title="Search Results", highlight=phrase)
     console.print(table)
+
+
+def _prompt_add_fields(
+    db: Session, level: Priority | None, category: str | None
+) -> tuple[str, Priority, str]:
+    """Interactively collect the fields for a bare `odot add`.
+
+    Split out of `add` to keep that command under the complexity gate, like
+    `_prompt_update_fields` for `update`. Priority and category are only
+    prompted for when their flag was not given.
+
+    Args:
+        db: Session used to offer the categories already in use.
+        level: The parsed `-p` value, or None to prompt for it.
+        category: The `-c` value, or None to prompt for it.
+
+    Returns:
+        The content, priority, and category to create the task with.
+
+    Raises:
+        typer.Exit: If a select is cancelled. questionary maps Ctrl-C to None,
+            which aborts the add rather than silently saving a default.
+    """
+    content = Prompt.ask("Task content")
+    if level is None:
+        level = _prompt_priority("Priority:", default=Priority.LOW)
+        if level is None:
+            raise _cancelled()
+    if category is None:
+        category = _prompt_category(db, "Category:", default="general")
+        if category is None:
+            raise _cancelled()
+    return content, level, category
 
 
 def _prompt_update_fields(
